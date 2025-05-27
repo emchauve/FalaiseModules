@@ -1,0 +1,16 @@
+#@description pipeline using FalaiseModules library
+#@key_label  "name"
+#@meta_label "type"
+
+# [name="flreconstruct" type="flreconstruct::section"]
+# experimentalSetupURN : string = "urn:snemo:demonstrator:setup:2.0"
+
+[name="flreconstruct.plugins" type="flreconstruct::section"]
+plugins : string[1] = "FalaiseModules"
+FalaiseModules.directory : string = "@PROJECT_BINARY_DIR@"
+
+[name="pipeline" type="dpp::chain_module"]
+modules : string[1] = "ttd_residual"
+
+[name="ttd_residual" type="ttd_residual_module"]
+TTD_label : string = "TTD"
