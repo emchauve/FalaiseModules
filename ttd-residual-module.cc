@@ -1,3 +1,5 @@
+#include "ttd-residual-data.cc"
+
 #include <bayeux/dpp/chain_module.h>
 
 #include <falaise/snemo/datamodels/event_header.h>
@@ -37,6 +39,8 @@ private:
 private:
   std::string _ttd_label_;
 
+  ttd_residual_data _ttd_data_;
+
   DPP_MODULE_REGISTRATION_INTERFACE(ttd_residual_module);
 };
 
@@ -73,17 +77,19 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
       return dpp::base_module::PROCESS_ERROR;
     }
 
-  const snemo::datamodel::event_header & EH = event.get<snemo::datamodel::event_header>("EH");
-  // const int run_id = EH.get_id().get_run_number();
-  const int event_id = EH.get_id().get_event_number();
-
-  const snemo::datamodel::unified_digitized_data & UDD = event.get<snemo::datamodel::unified_digitized_data>("UDD");
-  const snemo::datamodel::precalibrated_data & pCD = event.get<snemo::datamodel::precalibrated_data>("pCD");
   const snemo::datamodel::tracker_trajectory_data & TTD = event.get<snemo::datamodel::tracker_trajectory_data>("TTD");
-  const snemo::datamodel::tracker_clustering_data & TCD = event.get<snemo::datamodel::tracker_clustering_data>("TCD");
 
   if (TTD.get_solutions().size() == 0)
     return dpp::base_module::PROCESS_SUCCESS;
+
+  const snemo::datamodel::event_header & EH = event.get<snemo::datamodel::event_header>("EH");
+  _ttd_data_.run = EH.get_id().get_run_number();
+  _ttd_data_.event = EH.get_id().get_event_number();
+
+  const snemo::datamodel::unified_digitized_data & UDD = event.get<snemo::datamodel::unified_digitized_data>("UDD");
+  const snemo::datamodel::precalibrated_data & pCD = event.get<snemo::datamodel::precalibrated_data>("pCD");
+  const snemo::datamodel::tracker_clustering_data & TCD = event.get<snemo::datamodel::tracker_clustering_data>("TCD");
+
 
   const snemo::datamodel::tracker_trajectory_solution & ttd_solution = TTD.get_default_solution();
 
@@ -94,6 +100,7 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
     const snemo::datamodel::base_trajectory_pattern & tracker_pattern = ttd_trajectory->get_pattern();
 
+    // process only on line fit
     if (tracker_pattern.get_pattern_id() != snemo::datamodel::line_trajectory_pattern::pattern_id())
       continue;
 
@@ -117,8 +124,8 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     const double phi_from_fit = -std::atan2(line2d_xy_a, line2d_xy_b)/CLHEP::degree;
     const double theta_from_fit = -std::atan2(line2d_xz_a, line2d_xz_b)/CLHEP::degree;
 
-    std::cout << "[" << event_id << "-" << ttd_trajectory->get_id() << " ] " 
-	      << "  phi = " << phi_from_fit << "  theta = " << theta_from_fit << std::endl;
+    printf("[%d_%d:%d]   phi %.1f   theta = %.1f\n", _ttd_data_.run, _ttd_data_.event,
+	   ttd_trajectory->get_id(), phi_from_fit, theta_from_fit);
 
     uint32_t trajectory_side = 0;
 
