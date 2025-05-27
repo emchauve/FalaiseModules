@@ -12,7 +12,7 @@ FalaiseModules.directory : string = "@PROJECT_BINARY_DIR@"
 [name="pipeline" type="dpp::chain_module"]
 modules : string[1] = "cd_killer"
 
-[name="cd_killer" type="cd_killer"]
+[name="cd_killer" type="cd_killer_module"]
 # calo.dead_om : integer[1] = 123
 # calo.energy_threshold : real = 1.0
 # tracker.dead_gg : integer[1] = 456

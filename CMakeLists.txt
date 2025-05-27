@@ -5,7 +5,7 @@ project(FalaiseModules)
 find_package(Falaise REQUIRED)
 
 add_library(FalaiseModules SHARED
-  cd-killer.cc)
+  cd-killer-module.cc)
 
 target_link_libraries(FalaiseModules Falaise::FalaiseModule)
 
