@@ -1,0 +1,18 @@
+#@description pipeline using "cd_killer" module
+#@key_label  "name"
+#@meta_label "type"
+
+[name="flreconstruct" type="flreconstruct::section"]
+experimentalSetupURN : string = "urn:snemo:demonstrator:setup:2.0"
+
+[name="flreconstruct.plugins" type="flreconstruct::section"]
+plugins : string[1] = "FalaiseModules"
+FalaiseModules.directory : string = "@PROJECT_BINARY_DIR@"
+
+[name="pipeline" type="dpp::chain_module"]
+modules : string[1] = "cd_killer"
+
+[name="cd_killer" type="cd_killer"]
+# calo.dead_om : integer[1] = 123
+# calo.energy_threshold : real = 1.0
+# tracker.dead_gg : integer[1] = 456
