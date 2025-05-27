@@ -1,8 +1,8 @@
 #include <bayeux/dpp/chain_module.h>
 
-#include <falaise/snemo/datamodels/event_header.h>
-#include <falaise/snemo/datamodels/geomid_utils.h>
 #include <falaise/snemo/datamodels/calibrated_data.h>
+#include <falaise/snemo/datamodels/geomid_utils.h>
+#include <falaise/property_set.h>
 
 #include <cstdio>
 
@@ -26,7 +26,7 @@ private:
   bool calo_dead_om[712];
   bool tracker_dead_gg[2034];
 
-  float calo_energy_threshold;
+  double calo_energy_threshold;
 
   DPP_MODULE_REGISTRATION_INTERFACE(cd_killer_module);
 };
@@ -49,6 +49,8 @@ void cd_killer_module::initialize(const datatools::properties & config,
 			   datatools::service_manager & ,
 			   dpp::module_handle_dict_type & )
 {
+  const falaise::property_set fps {config};
+
   if (config.has_key("calo.dead_om"))
     {
       std::vector<int> dead_om_num_v;
@@ -81,11 +83,10 @@ void cd_killer_module::initialize(const datatools::properties & config,
       printf("\n");
     }
 
-  if (config.has_key("calo.energy_threshold"))
-    {
-      calo_energy_threshold = config.fetch_real("calo.energy_threshold");
-      printf("-> calo energy threshold: %.1f MeV\n", calo_energy_threshold);
-    }
+  calo_energy_threshold = fps.get<double>("calo.energy_threshold", -1);
+
+  if (calo_energy_threshold > 0)
+    printf("-> calo energy threshold = %.1f MeV\n", calo_energy_threshold);
 
   this->_set_initialized(true);
 }
@@ -124,7 +125,7 @@ dpp::chain_module::process_status cd_killer_module::process(datatools::things &e
 	++calo_hit_it;
     }
 
-  return PROCESS_SUCCESS;
+  return dpp::base_module::PROCESS_SUCCESS;
 }
 
 void cd_killer_module::finalize()
