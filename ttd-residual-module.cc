@@ -286,6 +286,15 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
       _track_data_.theta = _track_data_.theta - 90;
     }
 
+    // convert phi to get [-90;0;+90] for track
+    // going the calo left/front/right in top view
+    // in the point of view source => calo direction
+
+    if (_track_data_.phi > 90)
+      _track_data_.phi = 180 - _track_data_.phi;
+    else
+      _track_data_.phi = -_track_data_.phi;
+
     if (ttd_trajectory->get_cluster().is_delayed())
       _track_data_.flag |= (2 << 0);
 
