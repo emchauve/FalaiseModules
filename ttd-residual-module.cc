@@ -14,6 +14,23 @@
 #include <cstdio>
 #include <cmath>
 
+#include "TFile.h"
+#include "TTree.h"
+#include "TROOT.h"
+
+////////////////////////////////////////////////////////////////
+
+void ttd_residual_data_print(const ttd_residual_data & rd)
+{
+  printf("[%d_%d] with %zd track(s)\n", rd.run, rd.event, rd.track.size());
+
+  for (const track_data & tr : rd.track)
+    {
+      printf("- nb_gg=%3zd  flag=%02d  length=%6.1f  theta=%6.1f  phi=%5.1f  chi2/ndf=%5.2f\n",
+	     tr.cells.size(), tr.flag, tr.length, tr.theta, tr.phi, tr.chi2ndf);
+    }
+}
+
 ////////////////////////////////////////////////////////////////
 
 class ttd_residual_module : public dpp::chain_module
@@ -36,8 +53,12 @@ private:
 
 private:
   std::string _ttd_label_;
+  std::string _output_filename_;
 
   ttd_residual_data _ttd_data_;
+
+  TFile *_output_file_;
+  TTree *_output_tree_;
 
   DPP_MODULE_REGISTRATION_INTERFACE(ttd_residual_module);
 };
@@ -63,6 +84,13 @@ void ttd_residual_module::initialize(const datatools::properties & config,
   const falaise::property_set fps {config};
 
   _ttd_label_ = fps.get<std::string>("TTD_label", "TTD");
+  _output_filename_ = fps.get<std::string>("output_filename", "output.root");
+
+  // prepare ROOT output file/tree
+  _output_file_ = new TFile(_output_filename_.c_str(), "RECREATE");
+  _output_tree_ = new TTree("ttd_residual", "");
+  _output_tree_->Branch("ttd", &_ttd_data_);
+  gROOT->cd();
 
   this->_set_initialized(true);
 }
@@ -122,14 +150,14 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
       cluster_to_ttd[ttd_cluster.get_cluster_id()].push_back(ttd_trajectory->get_id());
     }
 
-  for (size_t cluster_id=0; cluster_id<cluster_to_ttd.size(); cluster_id++)
-    {
-      if (cluster_to_ttd[cluster_id].size() > 1)
-	printf("[%d_%d] multiple trajectories for cluster %zd\n", _ttd_data_.run, _ttd_data_.event, cluster_id);
+  // for (size_t cluster_id=0; cluster_id<cluster_to_ttd.size(); cluster_id++)
+  //   {
+  //     if (cluster_to_ttd[cluster_id].size() > 1)
+  // 	printf("[%d_%d] multiple trajectories for cluster %zd\n", _ttd_data_.run, _ttd_data_.event, cluster_id);
 
-      if (cluster_to_ttd[cluster_id].size() > 2)
-	printf("[%d_%d] >2 trajectories for cluster %zd !\n", _ttd_data_.run, _ttd_data_.event, cluster_id);
-    }
+  //     if (cluster_to_ttd[cluster_id].size() > 2)
+  // 	printf("[%d_%d] >2 trajectories for cluster %zd !\n", _ttd_data_.run, _ttd_data_.event, cluster_id);
+  //   }
 
   ////////////////////////////////
 
@@ -146,23 +174,25 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
     const auto & line_trajectory = dynamic_cast<const snemo::datamodel::line_trajectory_pattern &> (tracker_pattern);
 
-    const geomtools::vector_3d & line_start_point = line_trajectory.get_first();
-    const geomtools::vector_3d & line_stop_point = line_trajectory.get_last();
+    const geomtools::vector_3d & line_first_point = line_trajectory.get_first();
+    const geomtools::vector_3d & line_last_point = line_trajectory.get_last();
 
     // 2D solution in X/Y plane (top view) [a.x + b.y + c = 0]
-    const double line2d_xy_a = line_stop_point.y() - line_start_point.y();
-    const double line2d_xy_b = line_start_point.x() - line_stop_point.x();
-    const double line2d_xy_c = -line2d_xy_a*line_start_point.x() -line2d_xy_b*line_start_point.y();
+    const double line2d_xy_a = line_last_point.y() - line_first_point.y();
+    const double line2d_xy_b = line_first_point.x() - line_last_point.x();
+    const double line2d_xy_c = -line2d_xy_a*line_first_point.x() -line2d_xy_b*line_first_point.y();
 
     // 2D solution in X/Z plane (side view)
-    const double line2d_xz_a = line_stop_point.z() - line_start_point.z();
-    const double line2d_xz_b = line_start_point.x() - line_stop_point.x();
-    // const double line2d_xz_c = -line2d_xy_a*line_start_point.x() -line2d_xy_b*line_start_point.z();
-    const double line2d_xz_slope = (line_stop_point.z()-line_start_point.z())/(line_stop_point.x()-line_start_point.x());
-    const double line2d_xz_intercept = line_start_point.z() - line2d_xz_slope*line_start_point.x();
+    // const double line2d_xz_a = line_last_point.z() - line_first_point.z();
+    // const double line2d_xz_b = line_first_point.x() - line_last_point.x();
+    // const double line2d_xz_c = -line2d_xy_a*line_first_point.x() -line2d_xy_b*line_first_point.z();
+    const double line2d_xz_slope = (line_last_point.z()-line_first_point.z())/(line_last_point.x()-line_first_point.x());
+    const double line2d_xz_intercept = line_first_point.z() - line2d_xz_slope*line_first_point.x();
 
-    const double phi_from_fit = -std::atan2(line2d_xy_a, line2d_xy_b)/CLHEP::degree;
-    const double theta_from_fit = -std::atan2(line2d_xz_a, line2d_xz_b)/CLHEP::degree;
+    const geomtools::vector_3d & line_vector = line_last_point - line_first_point;
+    const double theta_from_fit = line_vector.theta()/CLHEP::degree;
+    double phi_from_fit = line_vector.phi()/CLHEP::degree;
+    if (phi_from_fit < 0) phi_from_fit += 180;
 
     // prepare new track_data entry and fill it
     _ttd_data_.track.push_back(track_data());
@@ -171,28 +201,25 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     _track_data_.flag = 0;
     for (int xyz=0; xyz<3; xyz++)
       {
-	_track_data_.first[xyz] = line_start_point[xyz];
-	_track_data_.last[xyz] = line_stop_point[xyz];
-	_track_data_.length += std::pow(line_stop_point[xyz] - line_start_point[xyz], 2);
+	_track_data_.first[xyz] = line_first_point[xyz];
+	_track_data_.last[xyz] = line_last_point[xyz];
+	_track_data_.length += std::pow(line_last_point[xyz] - line_first_point[xyz], 2);
       }
     _track_data_.length = std::sqrt(_track_data_.length);
-    _track_data_.theta = phi_from_fit;
-    _track_data_.phi = theta_from_fit;
+    _track_data_.theta = theta_from_fit;
+    _track_data_.phi = phi_from_fit;
 
     _track_data_.chi2ndf = ttd_trajectory->get_fit_infos().get_chi2();
     _track_data_.chi2ndf /= ttd_trajectory->get_fit_infos().get_ndof();
 
-    if (ttd_trajectory->get_cluster().is_delayed())
-      _track_data_.flag |= (1 << 0);
-
     // printf("[%d_%d:%d]   phi %.1f   theta = %.1f\n", _ttd_data_.run, _ttd_data_.event,
     // 	   ttd_trajectory->get_id(), phi_from_fit, theta_from_fit);
 
-    // uint32_t trajectory_side = 0;
+    uint32_t trajectory_side = 0;
 
     for (const auto & tracker_hit : ttd_trajectory->get_cluster().hits()) {
 
-      // trajectory_side = tracker_hit->get_geom_id().get(1);
+      trajectory_side = tracker_hit->get_geom_id().get(1);
 
       // retrieve cell center (anode)
       const double & tracker_hit_x = tracker_hit->get_x();
@@ -203,7 +230,7 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
       // const double radius_residual = radius_from_fit - radius_from_cd;
 
       const double height_from_cd = tracker_hit->get_z();
-      const double height_from_fit = line2d_xz_intercept + line2d_xz_slope*tracker_hit_x;
+      const double height_from_fit = line2d_xz_intercept + line2d_xz_slope*tracker_hit_x; // FALSE!!
       // const double height_residual = height_from_fit - height_from_cd;
 
       const datatools::properties & tracker_hit_properties = tracker_hit->get_auxiliaries();
@@ -231,10 +258,10 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
       _cell_data_.rfit = radius_from_fit;
       _cell_data_.zfit = height_from_fit;
 
-      printf("[%d_%d] gg %4d : anode = %5.2f us   bottom = %5.1f us   top = %5.1f us   r = %5.2f mm   z = %5.2f cm\n",
-	     _ttd_data_.run, _ttd_data_.event, _cell_data_.gg_num, _cell_data_.time_anode/CLHEP::microsecond,
-	     _cell_data_.time_bottom_cathode/CLHEP::microsecond, _cell_data_.time_top_cathode/CLHEP::microsecond,
-	     _cell_data_.r/CLHEP::mm, _cell_data_.z/CLHEP::cm);
+      // printf("[%d_%d] gg %4d : anode = %5.2f us   bottom = %5.1f us   top = %5.1f us   r = %5.2f mm   z = %5.2f cm\n",
+      // 	     _ttd_data_.run, _ttd_data_.event, _cell_data_.gg_num, _cell_data_.time_anode/CLHEP::microsecond,
+      // 	     _cell_data_.time_bottom_cathode/CLHEP::microsecond, _cell_data_.time_top_cathode/CLHEP::microsecond,
+      // 	     _cell_data_.r/CLHEP::mm, _cell_data_.z/CLHEP::cm);
 
       // flag on cell's neighbour configuration
       //  9 1 2
@@ -247,6 +274,20 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
     } // for (tracker_hit)
 
+    // flag the track side and convert theta to get 0
+    // for horizontal tracks and [0,+90] (or [0,-90])
+    // for track going toward top (or bottom) in the
+    // point of view source => calo direction
+
+    if (trajectory_side > 0) {
+      _track_data_.flag |= (1 << 0);
+      _track_data_.theta = 90 - _track_data_.theta;
+    } else {
+      _track_data_.theta = _track_data_.theta - 90;
+    }
+
+    if (ttd_trajectory->get_cluster().is_delayed())
+      _track_data_.flag |= (2 << 0);
 
     // Now loop over all unclustered cells to check possible missed cells
     // by the clusterisation algo (cells crossed by the fitted trajectory).
@@ -283,13 +324,20 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
   } // for (ttd_trajectory)
 
-  ttd_residual_data_print(_ttd_data_);
+  // ttd_residual_data_print(_ttd_data_);
+
+  _output_tree_->Fill();
+  _ttd_data_.track.clear();
 
   return dpp::base_module::PROCESS_SUCCESS;
 }
 
 void ttd_residual_module::finalize()
 {
+  _output_file_->cd();
+  _output_tree_->Write("", TObject::kOverwrite);
+  _output_file_->Close();
+
   this->_set_initialized(false);
 }
 

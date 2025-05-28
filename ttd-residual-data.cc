@@ -7,7 +7,10 @@
 struct cell_data
 {
   uint16_t gg_num;
+
   uint16_t flag;
+  // 0x1 = has bottom cathode
+  // 0x2 = has top cathode
 
   float time_anode;
   float time_bottom_cathode;
@@ -28,6 +31,8 @@ struct track_data
   // uint8_t ttd_id;
 
   uint32_t flag;
+  // 0x1 = side
+  // 0x2 = delayed
 
   float first[3];
   float last[3];
@@ -50,14 +55,3 @@ struct ttd_residual_data
 
   std::vector<track_data> track;
 };
-
-void ttd_residual_data_print(const ttd_residual_data & rd)
-{
-  printf("[%d_%d] with %zd track(s)\n", rd.run, rd.event, rd.track.size());
-
-  for (const track_data & tr : rd.track)
-    {
-      printf("- nb_gg=%3zd  flag=%02d  length=%6.1f  theta=%6.1f  phi=%5.1f  chi2/ndf=%5.2f\n",
-	     tr.cells.size(), tr.flag, tr.length, tr.theta, tr.phi, tr.chi2ndf);
-    }
-}
