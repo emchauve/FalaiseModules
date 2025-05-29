@@ -51,6 +51,11 @@ private:
   double distance_line_point_2d(double, double, double, double);
   double distance_line_point_2d(double, double, double, double, double);
 
+  bool intersect_with_src_plane(const geomtools::vector_3d &, const geomtools::vector_3d &, geomtools::vector_3d &);
+  bool intersect_with_mw_plane(const geomtools::vector_3d &, const geomtools::vector_3d &, const int &, geomtools::vector_3d &);
+  bool intersect_with_xw0_plane(const geomtools::vector_3d &, const geomtools::vector_3d &, const int &, geomtools::vector_3d &);
+  bool intersect_with_xw1_plane(const geomtools::vector_3d &, const geomtools::vector_3d &, const int &, geomtools::vector_3d &);
+
 private:
   std::string _ttd_label_;
   std::string _output_filename_;
@@ -190,6 +195,7 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     const double line2d_xz_intercept = line_first_point.z() - line2d_xz_slope*line_first_point.x();
 
     const geomtools::vector_3d & line_vector = line_last_point - line_first_point;
+
     const double theta_from_fit = line_vector.theta()/CLHEP::degree;
     double phi_from_fit = line_vector.phi()/CLHEP::degree;
     if (phi_from_fit < 0) phi_from_fit += 180;
@@ -298,6 +304,51 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     if (ttd_trajectory->get_cluster().is_delayed())
       _track_data_.flag |= (2 << 0);
 
+
+    // intercept with source plane ?
+    geomtools::vector_3d src_vertex;
+    if (this->intersect_with_src_plane(line_first_point, line_vector, src_vertex)) {
+      _track_data_.flag |= 0x10;
+      _track_data_.src_vtx[0] = src_vertex.y();
+      _track_data_.src_vtx[1] = src_vertex.z();
+    } else {
+      _track_data_.src_vtx[0] = 0;
+      _track_data_.src_vtx[1] = 0;
+    }
+
+    // intercept with main-wall plane ?
+    geomtools::vector_3d mw_vertex;
+    if (this->intersect_with_mw_plane(line_first_point, line_vector, trajectory_side, mw_vertex)) {
+      _track_data_.flag |= 0x20;
+      _track_data_.mw_vtx[0] = mw_vertex.y();
+      _track_data_.mw_vtx[1] = mw_vertex.z();
+    } else {
+      _track_data_.mw_vtx[0] = mw_vertex.y();
+      _track_data_.mw_vtx[1] = mw_vertex.z();
+    }
+
+    // intercept with x-wall 0 plane ?
+    geomtools::vector_3d xw0_vertex;
+    if (this->intersect_with_xw0_plane(line_first_point, line_vector, trajectory_side, xw0_vertex)) {
+      _track_data_.flag |= 0x40;
+      _track_data_.xw0_vtx[0] = xw0_vertex.x();
+      _track_data_.xw0_vtx[1] = xw0_vertex.z();
+    } else {
+      _track_data_.xw0_vtx[0] = xw0_vertex.x();
+      _track_data_.xw0_vtx[1] = xw0_vertex.z();
+    }
+
+    // intercept with x-wall 0 plane ?
+    geomtools::vector_3d xw1_vertex;
+    if (this->intersect_with_xw1_plane(line_first_point, line_vector, trajectory_side, xw1_vertex)) {
+      _track_data_.flag |= 0x80;
+      _track_data_.xw1_vtx[0] = xw1_vertex.x();
+      _track_data_.xw1_vtx[1] = xw1_vertex.z();
+    } else {
+      _track_data_.xw1_vtx[0] = xw1_vertex.x();
+      _track_data_.xw1_vtx[1] = xw1_vertex.z();
+    }
+
     // Now loop over all unclustered cells to check possible missed cells
     // by the clusterisation algo (cells crossed by the fitted trajectory).
 
@@ -358,4 +409,110 @@ double ttd_residual_module::distance_line_point_2d(double line_p0, double line_p
 double ttd_residual_module::distance_line_point_2d(double line_a, double line_b, double line_c, double point_x, double point_y)
 {
   return std::fabs(line_a*point_x + line_b*point_y + line_c) / std::sqrt(line_a*line_a + line_b*line_b);
+}
+
+
+bool ttd_residual_module::intersect_with_src_plane(const geomtools::vector_3d & line_point, const geomtools::vector_3d & line_vector, geomtools::vector_3d & intersect)
+{
+  const geomtools::vector_3d src_point (0, 0, 0);
+  const geomtools::vector_3d src_vector (1, 0, 0);
+
+  const geomtools::vector_3d src_line_vector (line_point - src_point);
+  const double src_line_factor1 = -src_vector.dot(src_line_vector);
+  const double src_line_factor2 = src_vector.dot(line_vector);
+
+  if (src_line_factor2 == 0)
+    return false;
+
+  intersect = (line_point + (src_line_factor1/src_line_factor2) * line_vector);
+
+  if (std::abs(intersect.z()) > 1750*CLHEP::mm)
+    return false;
+
+  if (std::abs(intersect.y()) > 2750*CLHEP::mm)
+    return false;
+
+  return true;
+}
+
+bool ttd_residual_module::intersect_with_mw_plane(const geomtools::vector_3d & line_point, const geomtools::vector_3d & line_vector, const int & side, geomtools::vector_3d & intersect)
+{
+  const int x_sign = (side > 0) ? +1 : -1;
+
+  const geomtools::vector_3d mw_point (x_sign*435*CLHEP::mm, 0, 0);
+  const geomtools::vector_3d mw_vector (1, 0, 0);
+
+  const geomtools::vector_3d mw_line_vector (line_point - mw_point);
+  const double mw_line_factor1 = -mw_vector.dot(mw_line_vector);
+  const double mw_line_factor2 = mw_vector.dot(line_vector);
+
+  if (mw_line_factor2 == 0)
+    return false;
+
+  intersect = (line_point + (mw_line_factor1/mw_line_factor2) * line_vector);
+
+  if (std::abs(intersect.z()) > 1750*CLHEP::mm)
+    return false;
+
+  if (std::abs(intersect.y()) > 2750*CLHEP::mm)
+    return false;
+
+  return true;
+}
+
+
+bool ttd_residual_module::intersect_with_xw0_plane(const geomtools::vector_3d & line_point, const geomtools::vector_3d & line_vector, const int & side, geomtools::vector_3d & intersect)
+{
+  const geomtools::vector_3d xw0_point (0, -2505.5*CLHEP::mm, 0);
+  const geomtools::vector_3d xw0_vector (0, 1, 0);
+
+  const geomtools::vector_3d xw0_line_vector (line_point - xw0_point);
+  const double xw0_line_factor1 = -xw0_vector.dot(xw0_line_vector);
+  const double xw0_line_factor2 = xw0_vector.dot(line_vector);
+
+  if (xw0_line_factor2 == 0)
+    return false;
+
+  intersect = (line_point + (xw0_line_factor1/xw0_line_factor2) * line_vector);
+
+  if (side > 0) {
+    if ((intersect.x() < 0) || (intersect.x() > 435*CLHEP::mm))
+      return false;
+  } else {
+    if ((intersect.x() > 0) || (intersect.x() < -435*CLHEP::mm))
+      return false;
+  }
+
+  if (std::abs(intersect.z()) > 1750*CLHEP::mm)
+    return false;
+
+  return true;
+}
+
+bool ttd_residual_module::intersect_with_xw1_plane(const geomtools::vector_3d & line_point, const geomtools::vector_3d & line_vector, const int & side, geomtools::vector_3d & intersect)
+{
+  const geomtools::vector_3d xw1_point (0, +2505.5*CLHEP::mm, 0);
+  const geomtools::vector_3d xw1_vector (0, 1, 0);
+
+  const geomtools::vector_3d xw1_line_vector (line_point - xw1_point);
+  const double xw1_line_factor1 = -xw1_vector.dot(xw1_line_vector);
+  const double xw1_line_factor2 = xw1_vector.dot(line_vector);
+
+  if (xw1_line_factor2 == 0)
+    return false;
+
+  intersect = (line_point + (xw1_line_factor1/xw1_line_factor2) * line_vector);
+
+  if (side > 0) {
+    if ((intersect.x() < 0) || (intersect.x() > 435*CLHEP::mm))
+      return false;
+  } else {
+    if ((intersect.x() > 0) || (intersect.x() < -435*CLHEP::mm))
+      return false;
+  }
+
+  if (std::abs(intersect.z()) > 1750*CLHEP::mm)
+    return false;
+
+  return true;
 }

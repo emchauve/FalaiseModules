@@ -31,11 +31,22 @@ struct track_data
   // uint8_t ttd_id;
 
   uint32_t flag;
-  // 0x1 = side
-  // 0x2 = delayed
+  // 0x01 = side
+  // 0x02 = delayed
+  // 0x04
+  // 0x08
+  // 0x10 = has source vertex
+  // 0x20 = has MW vertex
+  // 0x40 = has XW0 vertex
+  // 0x80 = has XW1 vertex
 
   float first[3];
   float last[3];
+
+  float src_vtx[2];
+  float mw_vtx[2];
+  float xw0_vtx[2];
+  float xw1_vtx[2];
 
   float length;
   float theta;
