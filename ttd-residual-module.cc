@@ -4,6 +4,8 @@
 
 #include <falaise/snemo/datamodels/event_header.h>
 #include <falaise/snemo/datamodels/geomid_utils.h>
+#include <falaise/snemo/datamodels/calibrated_calorimeter_hit.h>
+#include <falaise/snemo/datamodels/calibrated_data.h>
 #include <falaise/snemo/datamodels/line_trajectory_pattern.h>
 #include <falaise/snemo/datamodels/precalibrated_tracker_hit.h>
 #include <falaise/snemo/datamodels/tracker_clustering_data.h>
@@ -22,9 +24,9 @@
 
 void ttd_residual_data_print(const ttd_residual_data & rd)
 {
-  printf("[%d_%d] with %zd track(s)\n", rd.run, rd.event, rd.track.size());
+  printf("[%d_%d] with %zd track(s)\n", rd.run, rd.event, rd.tracks.size());
 
-  for (const track_data & tr : rd.track)
+  for (const track_data & tr : rd.tracks)
     {
       printf("- nb_gg=%3zd  flag=%02d  length=%6.1f  theta=%6.1f  phi=%5.1f  chi2/ndf=%5.2f\n",
 	     tr.cells.size(), tr.flag, tr.length, tr.theta, tr.phi, tr.chi2ndf);
@@ -157,11 +159,11 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
   // for (size_t cluster_id=0; cluster_id<cluster_to_ttd.size(); cluster_id++)
   //   {
-  //     if (cluster_to_ttd[cluster_id].size() > 1)
-  // 	printf("[%d_%d] multiple trajectories for cluster %zd\n", _ttd_data_.run, _ttd_data_.event, cluster_id);
+  //     //     if (cluster_to_ttd[cluster_id].size() > 1)
+  //     // 	printf("[%d_%d] multiple trajectories for cluster %zd\n", _ttd_data_.run, _ttd_data_.event, cluster_id);
 
   //     if (cluster_to_ttd[cluster_id].size() > 2)
-  // 	printf("[%d_%d] >2 trajectories for cluster %zd !\n", _ttd_data_.run, _ttd_data_.event, cluster_id);
+  // 	printf("[%d_%d] %zd trajectories for cluster %zd !\n", _ttd_data_.run, _ttd_data_.event, cluster_to_ttd[cluster_id].size(), cluster_id);
   //   }
 
   ////////////////////////////////
@@ -201,8 +203,8 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     if (phi_from_fit < 0) phi_from_fit += 180;
 
     // prepare new track_data entry and fill it
-    _ttd_data_.track.push_back(track_data());
-    track_data & _track_data_ = _ttd_data_.track.back();
+    _ttd_data_.tracks.push_back(track_data());
+    track_data & _track_data_ = _ttd_data_.tracks.back();
 
     _track_data_.flag = 0;
     for (int xyz=0; xyz<3; xyz++)
@@ -384,10 +386,24 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
   } // for (ttd_trajectory)
 
+
+  ////////////////////////////////
+
+  const snemo::datamodel::calibrated_data & CD = event.get<snemo::datamodel::calibrated_data>("CD");
+
+  for (const datatools::handle<snemo::datamodel::calibrated_calorimeter_hit> & calo_hit : CD.calorimeter_hits())
+    {
+      _ttd_data_.calos.push_back(om_data());
+      om_data & _om_data_ = _ttd_data_.calos.back();
+
+      _om_data_.om_num = snemo::datamodel::om_num(calo_hit->get_geom_id());
+    }
+
   // ttd_residual_data_print(_ttd_data_);
 
   _output_tree_->Fill();
-  _ttd_data_.track.clear();
+  _ttd_data_.tracks.clear();
+  _ttd_data_.calos.clear();
 
   return dpp::base_module::PROCESS_SUCCESS;
 }

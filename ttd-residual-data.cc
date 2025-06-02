@@ -25,6 +25,15 @@ struct cell_data
 
 ////////////////////////////////
 
+struct om_data
+{
+  uint16_t om_num;
+
+  // uint16_t flag;
+};
+
+////////////////////////////////
+
 struct track_data
 {
   // uint8_t tcd_id;
@@ -59,10 +68,24 @@ struct track_data
 
 ////////////////////////////////
 
+// cluster data contains cells infos
+// with all solution of fitted tracks
+
+// struct cluster_data
+// {
+//   std::vector<cell_data> cells;
+//   std::vector<track_data> tracks;
+// };
+
+////////////////////////////////
+
 struct ttd_residual_data
 {
   uint32_t run;
   uint32_t event;
 
-  std::vector<track_data> track;
+  std::vector<track_data> tracks;
+  // std::vector<cluster_data> clusters;
+
+  std::vector<om_data> calos;
 };
