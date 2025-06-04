@@ -51,12 +51,13 @@ void cd_killer_module::initialize(const datatools::properties & config,
 {
   const falaise::property_set fps {config};
 
+  memset(calo_dead_om, false, 712*sizeof(bool));
+  memset(tracker_dead_gg, false, 2034*sizeof(bool));
+
   if (config.has_key("calo.dead_om"))
     {
       std::vector<int> dead_om_num_v;
       config.fetch("calo.dead_om", dead_om_num_v);
-
-      memset(calo_dead_om, false, 712*sizeof(bool));
 
       printf("-> %zd dead OM: ", dead_om_num_v.size());
 
@@ -72,8 +73,6 @@ void cd_killer_module::initialize(const datatools::properties & config,
       std::vector<int> dead_cell_num_v;
       config.fetch("tracker.dead_gg", dead_cell_num_v);
 
-      memset(tracker_dead_gg, false, 2034*sizeof(bool));
-
       printf("-> %zd dead CELL: ", dead_cell_num_v.size());
 
       for (const int dead_cell_num : dead_cell_num_v) {
@@ -86,7 +85,7 @@ void cd_killer_module::initialize(const datatools::properties & config,
   calo_energy_threshold = fps.get<double>("calo.energy_threshold", -1);
 
   if (calo_energy_threshold > 0)
-    printf("-> calo energy threshold = %.1f MeV\n", calo_energy_threshold);
+    printf("-> calo energy threshold = %.2f MeV\n", calo_energy_threshold);
 
   this->_set_initialized(true);
 }
