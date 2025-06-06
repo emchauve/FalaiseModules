@@ -9,8 +9,12 @@ struct cell_data
   uint16_t gg_num;
 
   uint16_t flag;
-  // 0x1 = has bottom cathode
-  // 0x2 = has top cathode
+  // 0x01 = has bottom cathode
+  // 0x02 = has top cathode
+  // 0x04
+  // 0x08
+  // 0x10 = missed-in
+  // 0x20 = missed-out
 
   float time_anode;
   float time_bottom_cathode;
@@ -19,6 +23,8 @@ struct cell_data
   float r; // CD radius
   float z; // CD height
 
+  float xfit;
+  float yfit;
   float rfit; // FIT radius
   float zfit; // FIT height
 };
@@ -64,6 +70,7 @@ struct track_data
   float chi2ndf;
 
   std::vector<cell_data> cells;
+  std::vector<cell_data> missed_cells;
 };
 
 ////////////////////////////////
