@@ -16,3 +16,4 @@ modules : string[1] = "cd_killer"
 # calo.dead_om : integer[1] = 123
 # calo.energy_threshold : real = 1.0
 # tracker.dead_gg : integer[1] = 456
+# tracker.maxr_mm : real = 23.8

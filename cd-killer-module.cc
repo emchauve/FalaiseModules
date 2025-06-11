@@ -5,6 +5,7 @@
 #include <falaise/property_set.h>
 
 #include <cstdio>
+#include <limits>
 
 ////////////////////////////////////////////////////////////////
 
@@ -27,6 +28,7 @@ private:
   bool tracker_dead_gg[2034];
 
   double calo_energy_threshold;
+  double tracker_max_radius;
 
   DPP_MODULE_REGISTRATION_INTERFACE(cd_killer_module);
 };
@@ -87,6 +89,13 @@ void cd_killer_module::initialize(const datatools::properties & config,
   if (calo_energy_threshold > 0)
     printf("-> calo energy threshold = %.2f MeV\n", calo_energy_threshold);
 
+  if (config.has_key("tracker.maxr_mm")) {
+    tracker_max_radius = config.fetch_real("tracker.maxr_mm") * CLHEP::mm;
+    printf("-> tracker max radius = %.1f mm\n", tracker_max_radius/CLHEP::mm);
+  } else {
+    tracker_max_radius = std::numeric_limits<double>::max();
+  }
+
   this->_set_initialized(true);
 }
 
@@ -100,7 +109,7 @@ dpp::chain_module::process_status cd_killer_module::process(datatools::things &e
 
       const int a_cell_num = snemo::datamodel::gg_num(tracker_hit.get_geom_id());
 
-      if (tracker_dead_gg[a_cell_num])
+      if ((tracker_dead_gg[a_cell_num]) || (tracker_hit.get_r() > tracker_max_radius))
 	tracker_hit_it = CD.tracker_hits().erase(tracker_hit_it);
 
       else
