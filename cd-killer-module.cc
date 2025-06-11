@@ -1,6 +1,9 @@
 #include <bayeux/dpp/chain_module.h>
 
 #include <falaise/snemo/datamodels/calibrated_data.h>
+#include <falaise/snemo/datamodels/tracker_cluster.h>
+#include <falaise/snemo/datamodels/tracker_clustering_data.h>
+#include <falaise/snemo/datamodels/tracker_clustering_solution.h>
 #include <falaise/snemo/datamodels/geomid_utils.h>
 #include <falaise/property_set.h>
 
@@ -132,6 +135,30 @@ dpp::chain_module::process_status cd_killer_module::process(datatools::things &e
       else
 	++calo_hit_it;
     }
+
+  if (event.has("TCD")) {
+
+    snemo::datamodel::tracker_clustering_data & TCD = event.grab<snemo::datamodel::tracker_clustering_data>("TCD");
+
+    for (auto & tcd_solution : TCD.solutions()) {
+      for (auto & tcd_cluster : tcd_solution->get_clusters()) {
+	for (auto tracker_hit_it = tcd_cluster->hits().begin(); tracker_hit_it != tcd_cluster->hits().end() ; ) {
+
+	  const auto & tracker_hit = tracker_hit_it->get();
+
+	  const int a_cell_num = snemo::datamodel::gg_num(tracker_hit.get_geom_id());
+
+	  if ((tracker_dead_gg[a_cell_num]) || (tracker_hit.get_r() > tracker_max_radius))
+	    tracker_hit_it = tcd_cluster->hits().erase(tracker_hit_it);
+
+	  else
+	    ++tracker_hit_it;
+
+	} // for (tracker_hit_it)
+      } // for (tcd_cluster)
+    } // for (tcd_solution)
+
+  } // if has("TCD")
 
   return dpp::base_module::PROCESS_SUCCESS;
 }
