@@ -35,6 +35,8 @@ struct om_data
 {
   uint16_t om_num;
 
+  float energy;
+  float time;
   // uint16_t flag;
 };
 

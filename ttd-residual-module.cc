@@ -129,6 +129,9 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
   _ttd_data_.run = EH.get_id().get_run_number();
   _ttd_data_.event = EH.get_id().get_event_number();
 
+  if ((_ttd_data_.event % 10000) == 0)
+    printf("[%d_%d]\n", _ttd_data_.run, _ttd_data_.event);
+
   const snemo::datamodel::tracker_clustering_data & TCD = event.get<snemo::datamodel::tracker_clustering_data>("TCD");
 
   const snemo::datamodel::tracker_trajectory_solution & ttd_solution = TTD.get_default_solution();
@@ -592,6 +595,8 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
       om_data & _om_data_ = _ttd_data_.calos.back();
 
       _om_data_.om_num = snemo::datamodel::om_num(calo_hit->get_geom_id());
+      _om_data_.energy = calo_hit->get_energy()/CLHEP::MeV;
+      _om_data_.time = calo_hit->get_time()/CLHEP::ns;
     }
 
   // ttd_residual_data_print(_ttd_data_);
