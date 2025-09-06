@@ -7,9 +7,16 @@ find_package(Falaise REQUIRED)
 add_compile_options(-W -Wall -Werror -O2)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
+root_generate_dictionary(betabeta-data LINKDEF betabeta-data-linkdef.hh)
 root_generate_dictionary(ttd-residual-data LINKDEF ttd-residual-data-linkdef.hh)
 
 add_library(FalaiseModules SHARED
+
+  bank-removal-module.cc
+
+  betabeta-selection-module.cc
+  betabeta-data
+
   cd-killer-module.cc
   ttd-residual-module.cc
   ttd-residual-data
