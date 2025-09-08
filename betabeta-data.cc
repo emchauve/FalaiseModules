@@ -54,6 +54,8 @@ struct betabeta_data
   uint16_t particle1, particle2;
 
   uint16_t om1, om2;
+  uint16_t nb_gg1, nb_gg2;
+
   float e1, e2;
   float t1, t2;
   float l1, l2;

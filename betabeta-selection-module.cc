@@ -92,7 +92,7 @@ void betabeta_selection_module::initialize(const datatools::properties & config,
   _output_deltar_bb_cluster_ = new TH1F( "deltar_bb_cluster", ";#DeltaR(cluster - betabeta) (m);", 1000, 0, 4);
   _output_deltart_bb_cluster_ = new TH2F( "deltart_bb_cluster", ";#DeltaT(cluster - betabeta) (us);#DeltaR(cluster - betabeta) (m)", 1000, -500, 500, 1000, 0, 4);
 
-  _output_deltat_bb_calo_ = new TH1F( "deltat_bb_calo", ";#DeltaT(calo - betabeta) (ns);", 1000, -10000, 10000);
+  _output_deltat_bb_calo_ = new TH1F( "deltat_bb_calo", ";#DeltaT(calo - betabeta) (ns);", 1000, -1000, 1000);
 
   gROOT->cd();
 
@@ -297,6 +297,9 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
       _betabeta_data_.om1 = beta_1.om_num;
       _betabeta_data_.om2 = beta_2.om_num;
 
+      _betabeta_data_.nb_gg1 = beta_1.nb_cells;
+      _betabeta_data_.nb_gg2 = beta_2.nb_cells;
+
       _betabeta_data_.e1 = beta_1.energy;
       _betabeta_data_.e2 = beta_2.energy;
 
@@ -482,6 +485,8 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
       if (has_correlated_calo)
 	best_betabeta->flag |= (1 << 5); // correlated calo
+
+      // add waveform flag
 
       std::memcpy(&_betabeta_data_, best_betabeta, sizeof(betabeta_data));
 
