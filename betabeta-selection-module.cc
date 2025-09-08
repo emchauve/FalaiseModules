@@ -21,6 +21,7 @@
 #include <cmath>
 
 #include "TFile.h"
+#include "TH1F.h"
 #include "TTree.h"
 #include "TROOT.h"
 
@@ -48,6 +49,8 @@ private:
 
   TFile *_output_file_;
   TTree *_output_tree_;
+
+  TH1F *_output_deltat_bb_cluster_;
 
   DPP_MODULE_REGISTRATION_INTERFACE(betabeta_selection_module);
 };
@@ -77,8 +80,9 @@ void betabeta_selection_module::initialize(const datatools::properties & config,
   // prepare ROOT output file/tree
   _output_file_ = new TFile(_output_filename_.c_str(), "RECREATE");
   _output_tree_ = new TTree("betabeta_tree", "");
-
   _output_tree_->Branch("betabeta", &_betabeta_data_);
+
+  _output_deltat_bb_cluster_ = new TH1F( "deltat_bb_cluster", "", 1000, -100, 100);
 
   gROOT->cd();
 
@@ -173,7 +177,7 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
       if (particle->get_trajectory().get_cluster().is_delayed() || (!has_calo_vertex) || (!has_source_vertex)) {
 
-	// consider this particule as an alpha;
+	// consider this particle as an alpha;
 
 	alpha_data new_alpha;
 	// new_alpha.length;
@@ -251,32 +255,57 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 	continue;
       }
 
-      if (beta_i.om_num < beta_j.om_num) {
-	std::memcpy(&_betabeta_data_.beta[0], &beta_i, sizeof(beta_i));
-	std::memcpy(&_betabeta_data_.beta[1], &beta_j, sizeof(beta_j));
-      } else {
-	std::memcpy(&_betabeta_data_.beta[0], &beta_j, sizeof(beta_j));
-	std::memcpy(&_betabeta_data_.beta[1], &beta_i, sizeof(beta_i));
-      }
+      // order the beta by om num
+      const beta_data & beta_1 = (beta_i.om_num < beta_j.om_num) ? beta_i : beta_j;
+      const beta_data & beta_2 = (beta_i.om_num < beta_j.om_num) ? beta_j : beta_i;
 
-      for (int xyz=0; xyz<3; xyz++) {
-	_betabeta_data_.source_vtx[xyz] = beta_i.source_vtx[xyz];
-	_betabeta_data_.source_vtx[xyz] += beta_j.source_vtx[xyz];
-	_betabeta_data_.source_vtx[xyz] /= 2;
-      }	
-
-      _betabeta_data_.deltay = _betabeta_data_.beta[1].source_vtx[1] - _betabeta_data_.beta[0].source_vtx[1];
-      _betabeta_data_.deltaz = _betabeta_data_.beta[1].source_vtx[2] - _betabeta_data_.beta[0].source_vtx[2];
-
-      const float deltar2 = _betabeta_data_.deltay*_betabeta_data_.deltay + _betabeta_data_.deltaz*_betabeta_data_.deltaz;
+      // compute and cut (loose) on source vertex distance
+      const float deltay = beta_2.source_vtx[1] - beta_1.source_vtx[1];
+      const float deltaz = beta_2.source_vtx[2] - beta_1.source_vtx[2];
+      const float deltar2 = deltay*deltay + deltaz*deltaz;
 
       if (deltar2 > 0.3*0.3) {
 	// printf("[%d_%d] skip betabeta candidates with large deltar\n", eh_run, eh_event);
 	continue;
       }
 
+      // store the betabeta candidates
       _betabeta_data_.run = eh_run;
-      _betabeta_data_.run = eh_event;
+      _betabeta_data_.event = eh_event;
+
+      // _betabeta_data_.flag1 = 0;
+      // _betabeta_data_.flag2 = 0;
+
+      _betabeta_data_.cluster1 = beta_1.cluster_id;
+      _betabeta_data_.cluster2 = beta_2.cluster_id;
+
+      _betabeta_data_.particle1 = beta_1.particle_id;
+      _betabeta_data_.particle2 = beta_2.particle_id;
+
+      _betabeta_data_.om1 = beta_1.om_num;
+      _betabeta_data_.om2 = beta_2.om_num;
+
+      _betabeta_data_.e1 = beta_1.energy;
+      _betabeta_data_.e2 = beta_2.energy;
+
+      _betabeta_data_.t1 = beta_1.time;
+      _betabeta_data_.t2 = beta_2.time;
+
+      _betabeta_data_.l1 = beta_1.length;
+      _betabeta_data_.l2 = beta_2.length;
+
+      for (int xyz=0; xyz<3; xyz++) {
+        _betabeta_data_.calo_vtx1[xyz] = beta_1.calo_vtx[xyz];
+	_betabeta_data_.calo_vtx2[xyz] = beta_1.calo_vtx[xyz];
+
+        _betabeta_data_.source_vtx[xyz] = 0.5 * (beta_1.source_vtx[xyz] + beta_2.source_vtx[xyz]);
+      }
+
+      _betabeta_data_.source_deltay = beta_2.source_vtx[1] - beta_1.source_vtx[1];
+      _betabeta_data_.source_deltaz = beta_2.source_vtx[2] - beta_1.source_vtx[2];
+
+      // _betabeta_data_.alphas.clear();
+      // _betabeta_data_.gammas.clear();
 
       betabetas.push_back(_betabeta_data_);
 
@@ -292,9 +321,6 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
     _output_tree_->Fill();
 
   else if (betabetas.size() > 1) {
-
-    // if (betabetas.size() > 3)
-    //   printf("[%d_%d] %zd betabeta candidates\n", eh_run, eh_event, betabetas.size());
 
     std::vector<bool> skip_betabeta;
     skip_betabeta.reserve(betabetas.size());
@@ -318,22 +344,20 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
 	betabeta_data *new_betabeta = & betabetas[bb2];
 
-	if ((best_betabeta->beta[0].cluster_id == new_betabeta->beta[0].cluster_id) &&
-	    (best_betabeta->beta[1].cluster_id == new_betabeta->beta[1].cluster_id)) {
+	if ((best_betabeta->cluster1 == new_betabeta->cluster1) &&
+	    (best_betabeta->cluster2 == new_betabeta->cluster2)) {
 
-	  if (TMath::Abs(new_betabeta->deltay) < TMath::Abs(best_betabeta->deltay)) {
+	  if (TMath::Abs(new_betabeta->source_deltay) < TMath::Abs(best_betabeta->source_deltay)) {
 
 	    // printf("[%d_%d] better betabeta selected (%d,%d) -> (%d,%d)\n", eh_run, eh_event,
-	    // 	   best_betabeta->beta[0].particle_id, best_betabeta->beta[1].particle_id,
-	    // 	   new_betabeta->beta[0].particle_id, new_betabeta->beta[1].particle_id);
+	    // 	   best_betabeta->particle1, best_betabeta->particle2, new_betabeta->particle1, new_betabeta->particle2);
 
 	    best_betabeta = new_betabeta;
 
 	  } else {
 
 	    // printf("[%d_%d] keep betabeta selected (%d,%d) <- (%d,%d)\n", eh_run, eh_event,
-	    // 	   best_betabeta->beta[0].particle_id, best_betabeta->beta[1].particle_id,
-	    // 	   new_betabeta->beta[0].particle_id, new_betabeta->beta[1].particle_id);
+	    // 	   best_betabeta->particle1, best_betabeta->particle2, new_betabeta->particle1, new_betabeta->particle2);
 
 	  }
 
@@ -341,8 +365,8 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
 	}
 
-	else if ((best_betabeta->beta[0].cluster_id == new_betabeta->beta[1].cluster_id) &&
-		 (best_betabeta->beta[1].cluster_id == new_betabeta->beta[0].cluster_id)) {
+	else if ((best_betabeta->cluster1 == new_betabeta->cluster2) &&
+		 (best_betabeta->cluster2 == new_betabeta->cluster1)) {
 
 	  printf("[%d_%d] !!!!!!!! swapped double betabeta candidates !!!!!!\n", eh_run, eh_event);
 
@@ -353,17 +377,28 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
       // iterate over all other clusters for possible
       // extra tracks with space/time correlation
 
-      const double betabeta_mean_anode = (best_betabeta->beta[0].mean_anode + best_betabeta->beta[1].mean_anode) / 2.0;
+      const double betabeta_mean_anode = 0.5 * (cluster_mean_anodic_time[best_betabeta->cluster1] + cluster_mean_anodic_time[best_betabeta->cluster2]);
+
+      bool has_correlated_cluster = false;
 
       for (size_t cluster_id=0; cluster_id<tcd_solution.get_clusters().size(); cluster_id++) {
 
-	if (cluster_id == best_betabeta->beta[0].cluster_id) continue;
-	if (cluster_id == best_betabeta->beta[1].cluster_id) continue;
+	if (cluster_id == best_betabeta->cluster1) continue;
+	if (cluster_id == best_betabeta->cluster2) continue;
 
-	printf("[%d_%d] extra cluster with deltat = %.3f us and deltar = xxx\n", eh_run, eh_event,
-	       (cluster_mean_anodic_time[cluster_id] - betabeta_mean_anode)/CLHEP::microsecond);
+	const float deltat_bb_cluster = (cluster_mean_anodic_time[cluster_id] - betabeta_mean_anode) / CLHEP::microsecond;
+	printf("[%d_%d] extra cluster with deltat = %.3f us and deltar = xxx\n", eh_run, eh_event, deltat_bb_cluster);
+	_output_deltat_bb_cluster_->Fill(deltat_bb_cluster);
+
+	if (std::abs(deltat_bb_cluster) < 5.0) {
+	  has_correlated_cluster = true;
+	  break;
+	}
 
       }
+
+      if (has_correlated_cluster)
+	continue;
 
       std::memcpy(&_betabeta_data_, best_betabeta, sizeof(betabeta_data));
       _output_tree_->Fill();
@@ -383,6 +418,7 @@ void betabeta_selection_module::finalize()
 {
   _output_file_->cd();
   _output_tree_->Write("", TObject::kOverwrite);
+  _output_deltat_bb_cluster_->Write("", TObject::kOverwrite);
   _output_file_->Close();
 
   this->_set_initialized(false);
