@@ -19,9 +19,11 @@
 
 #include <cstdio>
 #include <cmath>
+#include <limits>
 
 #include "TFile.h"
 #include "TH1F.h"
+#include "TH2F.h"
 #include "TTree.h"
 #include "TROOT.h"
 
@@ -51,6 +53,8 @@ private:
   TTree *_output_tree_;
 
   TH1F *_output_deltat_bb_cluster_;
+  TH1F *_output_deltar_bb_cluster_;
+  TH2F *_output_deltart_bb_cluster_;
 
   DPP_MODULE_REGISTRATION_INTERFACE(betabeta_selection_module);
 };
@@ -82,7 +86,9 @@ void betabeta_selection_module::initialize(const datatools::properties & config,
   _output_tree_ = new TTree("betabeta_tree", "");
   _output_tree_->Branch("betabeta", &_betabeta_data_);
 
-  _output_deltat_bb_cluster_ = new TH1F( "deltat_bb_cluster", "", 1000, -100, 100);
+  _output_deltat_bb_cluster_ = new TH1F( "deltat_bb_cluster", ";#DeltaT(cluster - betabeta) (us);", 1000, -100, 100);
+  _output_deltar_bb_cluster_ = new TH1F( "deltar_bb_cluster", ";#DeltaR(cluster - betabeta) (m);", 1000, 0, 4);
+  _output_deltart_bb_cluster_ = new TH2F( "deltart_bb_cluster", ";#DeltaT(cluster - betabeta) (us);#DeltaR(cluster - betabeta) (m)", 1000, -100, 100, 1000, 0, 4);
 
   gROOT->cd();
 
@@ -296,7 +302,7 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
       for (int xyz=0; xyz<3; xyz++) {
         _betabeta_data_.calo_vtx1[xyz] = beta_1.calo_vtx[xyz];
-	_betabeta_data_.calo_vtx2[xyz] = beta_1.calo_vtx[xyz];
+	_betabeta_data_.calo_vtx2[xyz] = beta_2.calo_vtx[xyz];
 
         _betabeta_data_.source_vtx[xyz] = 0.5 * (beta_1.source_vtx[xyz] + beta_2.source_vtx[xyz]);
       }
@@ -386,11 +392,28 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 	if (cluster_id == best_betabeta->cluster1) continue;
 	if (cluster_id == best_betabeta->cluster2) continue;
 
+	// compute deltat between betabeta and cluster
 	const float deltat_bb_cluster = (cluster_mean_anodic_time[cluster_id] - betabeta_mean_anode) / CLHEP::microsecond;
-	printf("[%d_%d] extra cluster with deltat = %.3f us and deltar = xxx\n", eh_run, eh_event, deltat_bb_cluster);
 	_output_deltat_bb_cluster_->Fill(deltat_bb_cluster);
 
-	if (std::abs(deltat_bb_cluster) < 5.0) {
+	// compute deltar between betabeta and cluster
+	float deltar2_bb_cluster = std::numeric_limits<float>::max();
+	for (const datatools::handle<snemo::datamodel::calibrated_tracker_hit> & tracker_hit : tcd_solution.get_clusters()[cluster_id]->hits()) {
+	  float tmp_deltar2_bb_cluster = 0;
+	  tmp_deltar2_bb_cluster += std::pow(tracker_hit->get_x()/CLHEP::m - best_betabeta->source_vtx[0], 2);
+	  tmp_deltar2_bb_cluster += std::pow(tracker_hit->get_y()/CLHEP::m - best_betabeta->source_vtx[1], 2);
+	  if (tmp_deltar2_bb_cluster < deltar2_bb_cluster)
+	    deltar2_bb_cluster = tmp_deltar2_bb_cluster;
+	}
+
+	const float deltar_bb_cluster = std::sqrt(deltar2_bb_cluster);
+	_output_deltar_bb_cluster_->Fill(deltar_bb_cluster);
+
+	// printf("[%d_%d] extra cluster with deltat = %.3f us and deltar = %.3f m\n", eh_run, eh_event, deltat_bb_cluster, deltar_bb_cluster);
+	_output_deltart_bb_cluster_->Fill(deltat_bb_cluster, deltar_bb_cluster);
+
+	// perform betabeta veto if cluster is correlated in time
+	if ((-2.5 < deltat_bb_cluster) && (deltat_bb_cluster < +5.0)) {
 	  has_correlated_cluster = true;
 	  break;
 	}
@@ -419,6 +442,8 @@ void betabeta_selection_module::finalize()
   _output_file_->cd();
   _output_tree_->Write("", TObject::kOverwrite);
   _output_deltat_bb_cluster_->Write("", TObject::kOverwrite);
+  _output_deltar_bb_cluster_->Write("", TObject::kOverwrite);
+  _output_deltart_bb_cluster_->Write("", TObject::kOverwrite);
   _output_file_->Close();
 
   this->_set_initialized(false);
