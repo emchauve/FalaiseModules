@@ -400,10 +400,23 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 	float deltar2_bb_cluster = std::numeric_limits<float>::max();
 	for (const datatools::handle<snemo::datamodel::calibrated_tracker_hit> & tracker_hit : tcd_solution.get_clusters()[cluster_id]->hits()) {
 	  float tmp_deltar2_bb_cluster = 0;
+
+	  // deltar cell - source vertex
 	  tmp_deltar2_bb_cluster += std::pow(tracker_hit->get_x()/CLHEP::m - best_betabeta->source_vtx[0], 2);
 	  tmp_deltar2_bb_cluster += std::pow(tracker_hit->get_y()/CLHEP::m - best_betabeta->source_vtx[1], 2);
-	  if (tmp_deltar2_bb_cluster < deltar2_bb_cluster)
-	    deltar2_bb_cluster = tmp_deltar2_bb_cluster;
+	  if (tmp_deltar2_bb_cluster < deltar2_bb_cluster) deltar2_bb_cluster = tmp_deltar2_bb_cluster;
+
+	  // deltar cell - calo1 vertex
+	  tmp_deltar2_bb_cluster += std::pow(tracker_hit->get_x()/CLHEP::m - best_betabeta->calo_vtx1[0], 2);
+	  tmp_deltar2_bb_cluster += std::pow(tracker_hit->get_y()/CLHEP::m - best_betabeta->calo_vtx1[1], 2);
+	  if (tmp_deltar2_bb_cluster < deltar2_bb_cluster) deltar2_bb_cluster = tmp_deltar2_bb_cluster;
+
+	  // deltar cell - calo2 vertex
+	  tmp_deltar2_bb_cluster += std::pow(tracker_hit->get_x()/CLHEP::m - best_betabeta->calo_vtx2[0], 2);
+	  tmp_deltar2_bb_cluster += std::pow(tracker_hit->get_y()/CLHEP::m - best_betabeta->calo_vtx2[1], 2);
+	  if (tmp_deltar2_bb_cluster < deltar2_bb_cluster) deltar2_bb_cluster = tmp_deltar2_bb_cluster;
+
+	  // ideally should compare with all betabeta cells..
 	}
 
 	const float deltar_bb_cluster = std::sqrt(deltar2_bb_cluster);
