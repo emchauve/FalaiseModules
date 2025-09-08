@@ -41,6 +41,8 @@ struct betabeta_data
   uint32_t run;
   uint32_t event;
 
+  uint32_t flag;
+
   // beta_data beta[2];
   // float source_vtx[3];
   // float deltay;

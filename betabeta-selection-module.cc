@@ -56,6 +56,8 @@ private:
   TH1F *_output_deltar_bb_cluster_;
   TH2F *_output_deltart_bb_cluster_;
 
+  TH1F *_output_deltat_bb_calo_;
+
   DPP_MODULE_REGISTRATION_INTERFACE(betabeta_selection_module);
 };
 
@@ -88,7 +90,9 @@ void betabeta_selection_module::initialize(const datatools::properties & config,
 
   _output_deltat_bb_cluster_ = new TH1F( "deltat_bb_cluster", ";#DeltaT(cluster - betabeta) (us);", 1000, -100, 100);
   _output_deltar_bb_cluster_ = new TH1F( "deltar_bb_cluster", ";#DeltaR(cluster - betabeta) (m);", 1000, 0, 4);
-  _output_deltart_bb_cluster_ = new TH2F( "deltart_bb_cluster", ";#DeltaT(cluster - betabeta) (us);#DeltaR(cluster - betabeta) (m)", 1000, -100, 100, 1000, 0, 4);
+  _output_deltart_bb_cluster_ = new TH2F( "deltart_bb_cluster", ";#DeltaT(cluster - betabeta) (us);#DeltaR(cluster - betabeta) (m)", 1000, -500, 500, 1000, 0, 4);
+
+  _output_deltat_bb_calo_ = new TH1F( "deltat_bb_calo", ";#DeltaT(calo - betabeta) (ns);", 1000, -10000, 10000);
 
   gROOT->cd();
 
@@ -107,7 +111,6 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
   const int eh_run = EH.get_id().get_run_number();
   const int eh_event = EH.get_id().get_event_number();
 
-  // const snemo::datamodel::calibrated_data & CD = event.get<snemo::datamodel::calibrated_data>("CD");
   // const snemo::datamodel::tracker_clustering_solution & tcd_solution = TCD.get_default();
   // const snemo::datamodel::tracker_trajectory_data & TTD = event.get<snemo::datamodel::tracker_trajectory_data>("TTD");
   // const snemo::datamodel::tracker_trajectory_solution & ttd_solution = TTD.get_default_solution();
@@ -119,6 +122,7 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
   ////////////////////////////////////////////////////
 
   const snemo::datamodel::precalibrated_data & pCD = event.get<snemo::datamodel::precalibrated_data>("pCD");
+  const snemo::datamodel::calibrated_data & CD = event.get<snemo::datamodel::calibrated_data>("CD");
   const snemo::datamodel::tracker_clustering_data & TCD = event.get<snemo::datamodel::tracker_clustering_data>("TCD");
   const snemo::datamodel::tracker_clustering_solution & tcd_solution = TCD.get_default();
 
@@ -279,6 +283,8 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
       _betabeta_data_.run = eh_run;
       _betabeta_data_.event = eh_event;
 
+      _betabeta_data_.flag = 0;
+
       // _betabeta_data_.flag1 = 0;
       // _betabeta_data_.flag2 = 0;
 
@@ -323,10 +329,7 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
   int nb_betabeta = 0;
 
-  if (betabetas.size() == 1)
-    _output_tree_->Fill();
-
-  else if (betabetas.size() > 1) {
+  if (betabetas.size() > 0) {
 
     std::vector<bool> skip_betabeta;
     skip_betabeta.reserve(betabetas.size());
@@ -380,8 +383,8 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
       } // for (bb2)
 
-      // iterate over all other clusters for possible
-      // extra tracks with space/time correlation
+      // iterate over all other clusters for possible space/time
+      // correlation of betabeta candidate with an extra track
 
       const double betabeta_mean_anode = 0.5 * (cluster_mean_anodic_time[best_betabeta->cluster1] + cluster_mean_anodic_time[best_betabeta->cluster2]);
 
@@ -431,12 +434,82 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 	  break;
 	}
 
+      } // for (cluster_id)
+
+      // iterate over all other calo hits for possible time
+      // correlation of betabeta candidate with an extra hit
+
+      const double betabeta_mean_calo_time = 0.5 * (best_betabeta->t1 + best_betabeta->t2);
+
+      bool has_correlated_calo = false;
+
+      for (const datatools::handle<snemo::datamodel::calibrated_calorimeter_hit> & calo_hit : CD.calorimeter_hits()) {
+
+	const int om_num = snemo::datamodel::om_num(calo_hit->get_geom_id());
+
+	if (om_num == best_betabeta->om1) continue;
+	if (om_num == best_betabeta->om2) continue;
+
+	const float deltat_bb_calo = calo_hit->get_time()/CLHEP::ns - betabeta_mean_calo_time;
+	// printf("[%d_%d] extra calo with deltat = %.3f ns\n", eh_run, eh_event, deltat_bb_calo);
+	_output_deltat_bb_calo_->Fill(deltat_bb_calo);
+
+	if (std::abs(deltat_bb_calo) < 25.0)
+	  has_correlated_calo = true;
       }
 
       if (has_correlated_cluster)
 	continue;
 
+      // if (has_correlated_calo)
+      // 	continue;
+
+      best_betabeta->flag = 0;
+
+      if (best_betabeta->om1 >= 260) // /!\ OK if MW only ...
+	best_betabeta->flag |= (1 << 0); // side1 bit
+
+      if (best_betabeta->om2 >= 260) // /!\ OK if MW only ...
+	best_betabeta->flag |= (1 << 1); // side2 bit
+
+      if ((best_betabeta->flag & 0x1) == ((best_betabeta->flag >> 1) & 0x1))
+	best_betabeta->flag |= (1 << 2); // same side bit
+
+      // best_betabeta->flag |= (1 << 3);
+
+      if (has_correlated_cluster)
+	best_betabeta->flag |= (1 << 4); // correlated cluster
+
+      if (has_correlated_calo)
+	best_betabeta->flag |= (1 << 5); // correlated calo
+
       std::memcpy(&_betabeta_data_, best_betabeta, sizeof(betabeta_data));
+
+      // _betabeta_data_.run = best_betabeta->run;
+      // _betabeta_data_.event = best_betabeta->event;
+      // _betabeta_data_.flag = best_betabeta->flag;
+      // _betabeta_data_.cluster1 = best_betabeta->cluster1;
+      // _betabeta_data_.cluster2 = best_betabeta->cluster2;
+      // _betabeta_data_.particle1 = best_betabeta->particle1;
+      // _betabeta_data_.particle2 = best_betabeta->particle2;
+      // _betabeta_data_.om1 = best_betabeta->om1;
+      // _betabeta_data_.om2 = best_betabeta->om2;
+      // _betabeta_data_.e1 = best_betabeta->e1;
+      // _betabeta_data_.e2 = best_betabeta->e2;
+      // _betabeta_data_.t1 = best_betabeta->t1;
+      // _betabeta_data_.t2 = best_betabeta->t2;
+      // _betabeta_data_.l1 = best_betabeta->l1;
+      // _betabeta_data_.l2 = best_betabeta->l2;
+
+      // for (int xyz=0; xyz<3; xyz++) {
+      // 	_betabeta_data_.calo_vtx1[xyz] = best_betabeta->calo_vtx1[xyz];
+      // 	_betabeta_data_.calo_vtx2[xyz] = best_betabeta->calo_vtx2[xyz];
+      // 	_betabeta_data_.source_vtx[xyz] = best_betabeta->source_vtx[xyz];
+      // }
+
+      // _betabeta_data_.source_deltay = best_betabeta->source_deltay;
+      // _betabeta_data_.source_deltaz = best_betabeta->source_deltaz;
+
       _output_tree_->Fill();
 
       nb_betabeta++;
@@ -457,6 +530,7 @@ void betabeta_selection_module::finalize()
   _output_deltat_bb_cluster_->Write("", TObject::kOverwrite);
   _output_deltar_bb_cluster_->Write("", TObject::kOverwrite);
   _output_deltart_bb_cluster_->Write("", TObject::kOverwrite);
+  _output_deltat_bb_calo_->Write("", TObject::kOverwrite);
   _output_file_->Close();
 
   this->_set_initialized(false);
