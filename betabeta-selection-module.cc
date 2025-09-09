@@ -531,10 +531,10 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
       //   best_betabeta->flag |= (1 << 3); // 0x8
 
       if (has_intime_cluster)
-        best_betabeta->flag |= (1 << 4); // 0x10
+        best_betabeta->flag |= (1 << 4); // 0x10 = intime cluster
 
       if (has_delayed_cluster)
-	best_betabeta->flag |= (1 << 5); // 0x20 = intime cluster
+	best_betabeta->flag |= (1 << 5); // 0x20 = delayed cluster
 
       if (has_intime_calo)
 	best_betabeta->flag |= (1 << 6); // 0x40 = intime calo
