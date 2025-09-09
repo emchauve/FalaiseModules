@@ -22,8 +22,8 @@ struct beta_data
   float length;
   double mean_anode;
 
+  uint16_t flag;
   uint16_t om_num;
-  // uint16_t om_flag;
 
   uint16_t nb_cells;
   uint16_t nb_cells_withz;

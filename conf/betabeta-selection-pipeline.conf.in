@@ -23,3 +23,7 @@ deltat_extra_calo : real = 25.0 # ns
 # deltat_extra_cluster: any extra cluster within +/- this time
 # range of the bb candidate will be considered as intime
 deltat_extra_cluster : real = 5.0 # us
+
+# deltar_extra_cluster: any extra cluster within +/- this distance
+# (and above deltat_extra_cluster) will be considered as delayed alpha
+deltar_delayed_cluster : real = 0.5 # m

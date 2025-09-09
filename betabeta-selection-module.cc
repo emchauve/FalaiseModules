@@ -51,14 +51,12 @@ private:
 
   float _deltat_extra_calo_;
   float _deltat_extra_cluster_;
+  float _deltar_delayed_cluster_;
 
   TFile *_output_file_;
   TTree *_output_tree_;
 
-  TH1F *_output_deltat_bb_cluster_;
-  TH1F *_output_deltar_bb_cluster_;
   TH2F *_output_deltart_bb_cluster_;
-
   TH1F *_output_deltat_bb_calo_;
 
   DPP_MODULE_REGISTRATION_INTERFACE(betabeta_selection_module);
@@ -88,16 +86,14 @@ void betabeta_selection_module::initialize(const datatools::properties & config,
 
   _deltat_extra_calo_ = fps.get<double>("deltat_extra_calo", 25.0);
   _deltat_extra_cluster_ = fps.get<double>("deltat_extra_cluster", 5.0);
+  _deltar_delayed_cluster_ = fps.get<double>("deltar_delayed_cluster", 0.5);
 
   // prepare ROOT output file/tree
   _output_file_ = new TFile(_output_filename_.c_str(), "RECREATE");
   _output_tree_ = new TTree("betabeta_tree", "");
   _output_tree_->Branch("betabeta", &_betabeta_data_);
 
-  _output_deltat_bb_cluster_ = new TH1F( "deltat_bb_cluster", ";#DeltaT(cluster - betabeta) (us);", 1000, -100, 100);
-  _output_deltar_bb_cluster_ = new TH1F( "deltar_bb_cluster", ";#DeltaR(cluster - betabeta) (m);", 1000, 0, 4);
   _output_deltart_bb_cluster_ = new TH2F( "deltart_bb_cluster", ";#DeltaT(cluster - betabeta) (us);#DeltaR(cluster - betabeta) (m)", 500, -125, 125, 500, 0, 5);
-
   _output_deltat_bb_calo_ = new TH1F( "deltat_bb_calo", ";#DeltaT(calo - betabeta) (ns);", 1000, -1000, 1000);
 
   gROOT->cd();
@@ -130,6 +126,10 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
   // pre-compute some parameters of clusters //
   /////////////////////////////////////////////
 
+  // side
+  std::vector<uint16_t> cluster_side;
+  cluster_side.reserve(tcd_solution.get_clusters().size());
+
   // number of cells with reconstructed Z
   std::vector<uint16_t> cluster_nb_cells_withz;
   cluster_nb_cells_withz.reserve(tcd_solution.get_clusters().size());
@@ -142,6 +142,8 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
     uint16_t nb_cells_withz = 0;
     double anodic_time_sum = 0;
+
+    cluster_side.push_back(cluster->hits().front()->get_side());
 
     for (const datatools::handle<snemo::datamodel::calibrated_tracker_hit> & tracker_hit : cluster->hits()) {
 
@@ -246,6 +248,8 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 	new_beta.length += std::pow(new_beta.calo_vtx[xyz]-new_beta.source_vtx[xyz],2);
       new_beta.length = std::sqrt(new_beta.length);
 
+      new_beta.flag = cluster_side[new_beta.cluster_id];
+
       new_beta.om_num = snemo::datamodel::om_num(calo_hit->get_geom_id());
 
       new_beta.nb_cells = particle->get_trajectory().get_cluster().size();
@@ -313,52 +317,61 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 	continue;
       }
 
+      betabetas.push_back(betabeta_data());
+      betabeta_data & new_betabeta = betabetas.back();
+
       // store the betabeta candidates
-      _betabeta_data_.run = eh_run;
-      _betabeta_data_.event = eh_event;
-      _betabeta_data_.flag = 0;
+      new_betabeta.run = eh_run;
+      new_betabeta.event = eh_event;
+      new_betabeta.flag = 0;
 
-      // _betabeta_data_.flag1 = 0;
-      // _betabeta_data_.flag2 = 0;
+      new_betabeta.flag = 0;
 
-      _betabeta_data_.cluster1 = beta_1.cluster_id;
-      _betabeta_data_.cluster2 = beta_2.cluster_id;
+      if (beta_1.flag & 0x1)
+	new_betabeta.flag |= (1 << 0); // 0x1 = side1 bit
 
-      _betabeta_data_.particle1 = beta_1.particle_id;
-      _betabeta_data_.particle2 = beta_2.particle_id;
+      if (beta_2.flag & 0x1)
+	new_betabeta.flag |= (1 << 1); // 0x2 = side2 bit
 
-      _betabeta_data_.om1 = beta_1.om_num;
-      _betabeta_data_.om2 = beta_2.om_num;
+      if ((beta_1.flag & 0x1) == (beta_2.flag & 0x1))
+	new_betabeta.flag |= (1 << 2); // 0x4 = same side bit
 
-      _betabeta_data_.nb_gg1 = beta_1.nb_cells;
-      _betabeta_data_.nb_gg2 = beta_2.nb_cells;
+      new_betabeta.cluster1 = beta_1.cluster_id;
+      new_betabeta.cluster2 = beta_2.cluster_id;
 
-      _betabeta_data_.nb_gg1_withz = beta_1.nb_cells_withz;
-      _betabeta_data_.nb_gg2_withz = beta_2.nb_cells_withz;
+      new_betabeta.particle1 = beta_1.particle_id;
+      new_betabeta.particle2 = beta_2.particle_id;
 
-      _betabeta_data_.e1 = beta_1.energy;
-      _betabeta_data_.e2 = beta_2.energy;
+      new_betabeta.om1 = beta_1.om_num;
+      new_betabeta.om2 = beta_2.om_num;
 
-      _betabeta_data_.t1 = beta_1.time;
-      _betabeta_data_.t2 = beta_2.time;
+      new_betabeta.nb_gg1 = beta_1.nb_cells;
+      new_betabeta.nb_gg2 = beta_2.nb_cells;
 
-      _betabeta_data_.l1 = beta_1.length;
-      _betabeta_data_.l2 = beta_2.length;
+      new_betabeta.nb_gg1_withz = beta_1.nb_cells_withz;
+      new_betabeta.nb_gg2_withz = beta_2.nb_cells_withz;
+
+      new_betabeta.e1 = beta_1.energy;
+      new_betabeta.e2 = beta_2.energy;
+
+      new_betabeta.t1 = beta_1.time;
+      new_betabeta.t2 = beta_2.time;
+
+      new_betabeta.l1 = beta_1.length;
+      new_betabeta.l2 = beta_2.length;
 
       for (int xyz=0; xyz<3; xyz++) {
-        _betabeta_data_.calo_vtx1[xyz] = beta_1.calo_vtx[xyz];
-	_betabeta_data_.calo_vtx2[xyz] = beta_2.calo_vtx[xyz];
+        new_betabeta.calo_vtx1[xyz] = beta_1.calo_vtx[xyz];
+	new_betabeta.calo_vtx2[xyz] = beta_2.calo_vtx[xyz];
 
-        _betabeta_data_.source_vtx[xyz] = 0.5 * (beta_1.source_vtx[xyz] + beta_2.source_vtx[xyz]);
+        new_betabeta.source_vtx[xyz] = 0.5 * (beta_1.source_vtx[xyz] + beta_2.source_vtx[xyz]);
       }
 
-      _betabeta_data_.source_deltay = beta_2.source_vtx[1] - beta_1.source_vtx[1];
-      _betabeta_data_.source_deltaz = beta_2.source_vtx[2] - beta_1.source_vtx[2];
+      new_betabeta.source_deltay = beta_2.source_vtx[1] - beta_1.source_vtx[1];
+      new_betabeta.source_deltaz = beta_2.source_vtx[2] - beta_1.source_vtx[2];
 
-      // _betabeta_data_.alphas.clear();
-      // _betabeta_data_.gammas.clear();
-
-      betabetas.push_back(_betabeta_data_);
+      // new_betabeta.alphas.clear();
+      // new_betabeta.gammas.clear();
 
     } // for (j)
 
@@ -427,7 +440,8 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
       const double betabeta_mean_anode = 0.5 * (cluster_mean_anodic_time[best_betabeta->cluster1] + cluster_mean_anodic_time[best_betabeta->cluster2]);
 
-      bool has_correlated_cluster = false;
+      bool has_intime_cluster = false;
+      bool has_delayed_cluster = false;
 
       for (size_t cluster_id=0; cluster_id<tcd_solution.get_clusters().size(); cluster_id++) {
 
@@ -436,7 +450,6 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
 	// compute deltat between betabeta and cluster
 	const float deltat_bb_cluster = (cluster_mean_anodic_time[cluster_id] - betabeta_mean_anode) / CLHEP::microsecond;
-	_output_deltat_bb_cluster_->Fill(deltat_bb_cluster);
 
 	// compute deltar between betabeta and cluster
 	float deltar2_bb_cluster = std::numeric_limits<float>::max();
@@ -467,16 +480,18 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 	}
 
 	const float deltar_bb_cluster = std::sqrt(deltar2_bb_cluster);
-	_output_deltar_bb_cluster_->Fill(deltar_bb_cluster);
 
-	printf("[%d_%d] extra cluster with deltat = %.3f us and deltar = %.3f m\n", eh_run, eh_event, deltat_bb_cluster, deltar_bb_cluster);
+	// printf("[%d_%d] extra cluster with deltat = %.3f us and deltar = %.3f m\n", eh_run, eh_event, deltat_bb_cluster, deltar_bb_cluster);
 	_output_deltart_bb_cluster_->Fill(deltat_bb_cluster, deltar_bb_cluster);
 
 	// perform betabeta veto if cluster is correlated in time
 	// if ((-2.5 < deltat_bb_cluster) && (deltat_bb_cluster < +5.0)) {
-	if (std::abs(deltat_bb_cluster) < _deltat_extra_cluster_) {
-	  has_correlated_cluster = true;
-	  break;
+	if (std::abs(deltat_bb_cluster) < _deltat_extra_cluster_)
+	  has_intime_cluster = true;
+
+	else if (deltat_bb_cluster >= _deltat_extra_cluster_) {
+	  if (deltar_bb_cluster < _deltar_delayed_cluster_)
+	    has_delayed_cluster = true;
 	}
 
       } // for (cluster_id)
@@ -486,7 +501,7 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
       const double betabeta_mean_calo_time = 0.5 * (best_betabeta->t1 + best_betabeta->t2);
 
-      bool has_correlated_calo = false;
+      bool has_intime_calo = false;
 
       for (const datatools::handle<snemo::datamodel::calibrated_calorimeter_hit> & calo_hit : CD.calorimeter_hits()) {
 
@@ -500,33 +515,29 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 	_output_deltat_bb_calo_->Fill(deltat_bb_calo);
 
 	if (std::abs(deltat_bb_calo) < _deltat_extra_calo_)
-	  has_correlated_calo = true;
+	  has_intime_calo = true;
       }
 
-      if (has_correlated_cluster)
+      // skip any betabeta candidate with an extra cluster intime
+      if (has_intime_cluster)
 	continue;
 
-      // if (has_correlated_calo)
-      // 	continue;
+      // best_betabeta->flag already initialed
+      // best_betabeta->flag |= (1 << 0); // 0x1 = side1 bit
+      // best_betabeta->flag |= (1 << 1); // 0x2 = side2 bit
+      // best_betabeta->flag |= (1 << 2); // 0x4 = same side bit
 
-      best_betabeta->flag = 0;
+      // if (xxxxxxxx)
+      //   best_betabeta->flag |= (1 << 3); // 0x8
 
-      if (best_betabeta->om1 >= 260) // /!\ OK if MW only ...
-	best_betabeta->flag |= (1 << 0); // 0x1 = side1 bit
+      if (has_intime_cluster)
+        best_betabeta->flag |= (1 << 4); // 0x10
 
-      if (best_betabeta->om2 >= 260) // /!\ OK if MW only ...
-	best_betabeta->flag |= (1 << 1); // 0x2 = side2 bit
+      if (has_delayed_cluster)
+	best_betabeta->flag |= (1 << 5); // 0x20 = intime cluster
 
-      if ((best_betabeta->flag & 0x1) == ((best_betabeta->flag >> 1) & 0x1))
-	best_betabeta->flag |= (1 << 2); // 0x4 = same side bit
-
-      // best_betabeta->flag |= (1 << 3);
-
-      if (has_correlated_cluster)
-	best_betabeta->flag |= (1 << 4); // 0x10 = correlated cluster
-
-      if (has_correlated_calo)
-	best_betabeta->flag |= (1 << 5); // 0x20 = correlated calo
+      if (has_intime_calo)
+	best_betabeta->flag |= (1 << 6); // 0x40 = intime calo
 
       // add waveform flag
 
@@ -574,8 +585,6 @@ void betabeta_selection_module::finalize()
 {
   _output_file_->cd();
   _output_tree_->Write("", TObject::kOverwrite);
-  _output_deltat_bb_cluster_->Write("", TObject::kOverwrite);
-  _output_deltar_bb_cluster_->Write("", TObject::kOverwrite);
   _output_deltart_bb_cluster_->Write("", TObject::kOverwrite);
   _output_deltat_bb_calo_->Write("", TObject::kOverwrite);
   _output_file_->Close();
