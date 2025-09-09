@@ -115,31 +115,40 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
   // const snemo::datamodel::tracker_trajectory_data & TTD = event.get<snemo::datamodel::tracker_trajectory_data>("TTD");
   // const snemo::datamodel::tracker_trajectory_solution & ttd_solution = TTD.get_default_solution();
 
-
-
-  ////////////////////////////////////////////////////
-  // compute average anode time per tracker cluster //
-  ////////////////////////////////////////////////////
-
   const snemo::datamodel::precalibrated_data & pCD = event.get<snemo::datamodel::precalibrated_data>("pCD");
   const snemo::datamodel::calibrated_data & CD = event.get<snemo::datamodel::calibrated_data>("CD");
   const snemo::datamodel::tracker_clustering_data & TCD = event.get<snemo::datamodel::tracker_clustering_data>("TCD");
   const snemo::datamodel::tracker_clustering_solution & tcd_solution = TCD.get_default();
+
+  /////////////////////////////////
+  // compute clusters parameters //
+  /////////////////////////////////
+
+  std::vector<uint16_t> cluster_nb_cells_withz;
+  cluster_nb_cells_withz.reserve(tcd_solution.get_clusters().size());
 
   std::vector<double> cluster_mean_anodic_time;
   cluster_mean_anodic_time.reserve(tcd_solution.get_clusters().size());
 
   for (const datatools::handle<snemo::datamodel::tracker_cluster> & cluster : tcd_solution.get_clusters()) {
 
+    uint16_t nb_cells_withz = 0;
     double anodic_time_sum = 0;
 
-    for (const datatools::handle<snemo::datamodel::calibrated_tracker_hit>  & tracker_hit : cluster->hits()) {
+    for (const datatools::handle<snemo::datamodel::calibrated_tracker_hit> & tracker_hit : cluster->hits()) {
+
+      if (datatools::is_valid(tracker_hit->get_z()))
+	nb_cells_withz++;
+
       const int pcd_index = tracker_hit->get_auxiliaries().fetch_integer("pCD.parent");
       anodic_time_sum += pCD.tracker_hits()[pcd_index]->get_anodic_time();
-    }
 
+    } // for (tracker_hit)
+
+    cluster_nb_cells_withz.push_back(nb_cells_withz);
     cluster_mean_anodic_time.push_back(anodic_time_sum / cluster->hits().size());
-  }
+
+  } // for (cluster)
 
   ///////////////////////////////////////////////////////////////////////
   // loop over PTD bank and classify particle as alpha, beta and gamma //
@@ -219,6 +228,10 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
       new_beta.om_num = snemo::datamodel::om_num(calo_hit->get_geom_id());
 
       new_beta.nb_cells = particle->get_trajectory().get_cluster().size();
+      new_beta.nb_cells_withz = cluster_nb_cells_withz[new_beta.cluster_id];
+
+      new_beta.nb_cells = particle->get_trajectory().get_cluster().size();
+
       new_beta.cluster_id = particle->get_trajectory().get_cluster().get_cluster_id();
       new_beta.particle_id = particle->get_track_id();
 
@@ -299,6 +312,9 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
       _betabeta_data_.nb_gg1 = beta_1.nb_cells;
       _betabeta_data_.nb_gg2 = beta_2.nb_cells;
+
+      _betabeta_data_.nb_gg1_withz = beta_1.nb_cells_withz;
+      _betabeta_data_.nb_gg2_withz = beta_2.nb_cells_withz;
 
       _betabeta_data_.e1 = beta_1.energy;
       _betabeta_data_.e2 = beta_2.energy;
@@ -470,21 +486,21 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
       best_betabeta->flag = 0;
 
       if (best_betabeta->om1 >= 260) // /!\ OK if MW only ...
-	best_betabeta->flag |= (1 << 0); // side1 bit
+	best_betabeta->flag |= (1 << 0); // 0x1 = side1 bit
 
       if (best_betabeta->om2 >= 260) // /!\ OK if MW only ...
-	best_betabeta->flag |= (1 << 1); // side2 bit
+	best_betabeta->flag |= (1 << 1); // 0x2 = side2 bit
 
       if ((best_betabeta->flag & 0x1) == ((best_betabeta->flag >> 1) & 0x1))
-	best_betabeta->flag |= (1 << 2); // same side bit
+	best_betabeta->flag |= (1 << 2); // 0x4 = same side bit
 
       // best_betabeta->flag |= (1 << 3);
 
       if (has_correlated_cluster)
-	best_betabeta->flag |= (1 << 4); // correlated cluster
+	best_betabeta->flag |= (1 << 4); // 0x10 = correlated cluster
 
       if (has_correlated_calo)
-	best_betabeta->flag |= (1 << 5); // correlated calo
+	best_betabeta->flag |= (1 << 5); // 0x20 = correlated calo
 
       // add waveform flag
 

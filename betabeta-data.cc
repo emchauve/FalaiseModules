@@ -23,7 +23,11 @@ struct beta_data
   double mean_anode;
 
   uint16_t om_num;
+  // uint16_t om_flag;
+
   uint16_t nb_cells;
+  uint16_t nb_cells_withz;
+
   uint16_t cluster_id;
   uint16_t particle_id;
 };
@@ -54,7 +58,12 @@ struct betabeta_data
   uint16_t particle1, particle2;
 
   uint16_t om1, om2;
-  uint16_t nb_gg1, nb_gg2;
+
+  uint16_t nb_gg1;
+  uint16_t nb_gg2;
+
+  uint16_t nb_gg1_withz;
+  uint16_t nb_gg2_withz;
 
   float e1, e2;
   float t1, t2;
