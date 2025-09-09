@@ -49,6 +49,9 @@ private:
 
   betabeta_data _betabeta_data_;
 
+  float _deltat_extra_calo_;
+  float _deltat_extra_cluster_;
+
   TFile *_output_file_;
   TTree *_output_tree_;
 
@@ -83,6 +86,9 @@ void betabeta_selection_module::initialize(const datatools::properties & config,
   _ptd_label_ = fps.get<std::string>("PTD_label", "PTD");
   _output_filename_ = fps.get<std::string>("output_filename", "output.root");
 
+  _deltat_extra_calo_ = fps.get<double>("deltat_extra_calo", 25.0);
+  _deltat_extra_cluster_ = fps.get<double>("deltat_extra_cluster", 5.0);
+
   // prepare ROOT output file/tree
   _output_file_ = new TFile(_output_filename_.c_str(), "RECREATE");
   _output_tree_ = new TTree("betabeta_tree", "");
@@ -90,7 +96,7 @@ void betabeta_selection_module::initialize(const datatools::properties & config,
 
   _output_deltat_bb_cluster_ = new TH1F( "deltat_bb_cluster", ";#DeltaT(cluster - betabeta) (us);", 1000, -100, 100);
   _output_deltar_bb_cluster_ = new TH1F( "deltar_bb_cluster", ";#DeltaR(cluster - betabeta) (m);", 1000, 0, 4);
-  _output_deltart_bb_cluster_ = new TH2F( "deltart_bb_cluster", ";#DeltaT(cluster - betabeta) (us);#DeltaR(cluster - betabeta) (m)", 1000, -500, 500, 1000, 0, 4);
+  _output_deltart_bb_cluster_ = new TH2F( "deltart_bb_cluster", ";#DeltaT(cluster - betabeta) (us);#DeltaR(cluster - betabeta) (m)", 500, -125, 125, 500, 0, 5);
 
   _output_deltat_bb_calo_ = new TH1F( "deltat_bb_calo", ";#DeltaT(calo - betabeta) (ns);", 1000, -1000, 1000);
 
@@ -120,13 +126,15 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
   const snemo::datamodel::tracker_clustering_data & TCD = event.get<snemo::datamodel::tracker_clustering_data>("TCD");
   const snemo::datamodel::tracker_clustering_solution & tcd_solution = TCD.get_default();
 
-  /////////////////////////////////
-  // compute clusters parameters //
-  /////////////////////////////////
+  /////////////////////////////////////////////
+  // pre-compute some parameters of clusters //
+  /////////////////////////////////////////////
 
+  // number of cells with reconstructed Z
   std::vector<uint16_t> cluster_nb_cells_withz;
   cluster_nb_cells_withz.reserve(tcd_solution.get_clusters().size());
 
+  // cluster mean anodic time (use as "cluster time")
   std::vector<double> cluster_mean_anodic_time;
   cluster_mean_anodic_time.reserve(tcd_solution.get_clusters().size());
 
@@ -164,11 +172,11 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
   for (const datatools::handle<snemo::datamodel::particle_track> & particle : PTD.particles())
     {
-      beta_data new_beta;
-      memset(&new_beta, 0, sizeof(new_beta));
-
-      bool has_source_vertex = false;
       bool has_calo_vertex = false;
+      bool has_source_vertex = false;
+
+      float calo_vtx[3];
+      float source_vtx[3];
 
       for (const datatools::handle<snemo::datamodel::vertex> & vertex : particle->get_vertices())
 	{
@@ -177,7 +185,7 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 	      const geomtools::vector_3d & vertex_position = vertex->get_spot().get_position();
 
 	      for (int xyz=0; xyz<3; xyz++)
-		new_beta.calo_vtx[xyz] = vertex_position[xyz] / CLHEP::m;
+		calo_vtx[xyz] = vertex_position[xyz] / CLHEP::m;
 
 	      has_calo_vertex = true;
 	    }
@@ -187,16 +195,20 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 	      const geomtools::vector_3d & vertex_position = vertex->get_spot().get_position();
 
 	      for (int xyz=0; xyz<3; xyz++)
-		new_beta.source_vtx[xyz] = vertex_position[xyz] / CLHEP::m;
+		source_vtx[xyz] = vertex_position[xyz] / CLHEP::m;
 
 	      has_source_vertex = true;
 	    }
 
 	} // for (vertex)
 
-      if (particle->get_trajectory().get_cluster().is_delayed() || (!has_calo_vertex) || (!has_source_vertex)) {
+      if (particle->get_trajectory().get_cluster().is_delayed() || (!has_calo_vertex) || (!has_source_vertex) 
+	  || (particle->get_associated_calorimeter_hits().size() == 0)) {
 
-	// consider this particle as an alpha;
+	// if : - particle is delayed
+	//      - particle does not have calo vertex and source vertex
+	//      - particle is not associated to a calorimeter hit
+	// => consider this particle as an alpha !
 
 	alpha_data new_alpha;
 	// new_alpha.length;
@@ -211,15 +223,24 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 	continue;
       }
       
-      if (particle->get_associated_calorimeter_hits().size() == 0)
-	continue;
+      // if (particle->get_associated_calorimeter_hits().size() == 0)
+      // 	continue;
 
       if (particle->get_associated_calorimeter_hits().size() > 1)
 	printf("[%d_%d] *** particle track with > 1 calo\n", eh_run, eh_event);
 
+      // this particle is considered beta => prepare data storage
+
+      betas.push_back(beta_data());
+      beta_data & new_beta = betas.back();
+      // memset(&new_beta, 0, sizeof(new_beta));
+
       const auto & calo_hit = particle->get_associated_calorimeter_hits().front();
       new_beta.energy = calo_hit->get_energy() / CLHEP::MeV;
       new_beta.time = calo_hit->get_time() / CLHEP::ns;
+
+      std::memcpy(new_beta.calo_vtx, calo_vtx, sizeof(calo_vtx));
+      std::memcpy(new_beta.source_vtx, source_vtx, sizeof(source_vtx));
 
       for (int xyz=0; xyz<3; xyz++)
 	new_beta.length += std::pow(new_beta.calo_vtx[xyz]-new_beta.source_vtx[xyz],2);
@@ -241,17 +262,17 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
       new_beta.mean_anode = cluster_mean_anodic_time[new_beta.cluster_id];
 
       betas.push_back(new_beta);
-      // compute PTD length
-
-      // calo time+energy
 
     } // for (particle)
 
   // printf("[%d_%d] %zd beta(s)\n", eh_run, eh_event, betas.size());
 
-
   if (betas.size() < 2)
     return dpp::base_module::PROCESS_SUCCESS;
+
+  ////////////////////////////////
+  // perform betabeta selection //
+  ////////////////////////////////
 
   for (size_t i=0; i<betas.size(); i++) {
 
@@ -259,12 +280,12 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
     for (size_t j=i+1; j<betas.size(); j++) {
 
-      // printf("[%d_%d] (%zd,%zd)\n", eh_run, eh_event, i, j);
-
       const beta_data & beta_j = betas[j];
 
+      // printf("[%d_%d] checking (%zd,%zd)\n", eh_run, eh_event, i, j);
+
       if (beta_i.cluster_id == beta_j.cluster_id) {
-	// printf("[%d_%d] skipping same cluster beta pair\n", eh_run, eh_event);
+	// printf("[%d_%d] skipping beta pair with same cluster\n", eh_run, eh_event);
 	continue;
       }
 
@@ -282,7 +303,7 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
       const beta_data & beta_1 = (beta_i.om_num < beta_j.om_num) ? beta_i : beta_j;
       const beta_data & beta_2 = (beta_i.om_num < beta_j.om_num) ? beta_j : beta_i;
 
-      // compute and cut (loose) on source vertex distance
+      // compute source vertex distance
       const float deltay = beta_2.source_vtx[1] - beta_1.source_vtx[1];
       const float deltaz = beta_2.source_vtx[2] - beta_1.source_vtx[2];
       const float deltar2 = deltay*deltay + deltaz*deltaz;
@@ -295,7 +316,6 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
       // store the betabeta candidates
       _betabeta_data_.run = eh_run;
       _betabeta_data_.event = eh_event;
-
       _betabeta_data_.flag = 0;
 
       // _betabeta_data_.flag1 = 0;
@@ -420,20 +440,25 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
 	// compute deltar between betabeta and cluster
 	float deltar2_bb_cluster = std::numeric_limits<float>::max();
+
 	for (const datatools::handle<snemo::datamodel::calibrated_tracker_hit> & tracker_hit : tcd_solution.get_clusters()[cluster_id]->hits()) {
+
 	  float tmp_deltar2_bb_cluster = 0;
 
 	  // deltar cell - source vertex
+	  tmp_deltar2_bb_cluster = 0;
 	  tmp_deltar2_bb_cluster += std::pow(tracker_hit->get_x()/CLHEP::m - best_betabeta->source_vtx[0], 2);
 	  tmp_deltar2_bb_cluster += std::pow(tracker_hit->get_y()/CLHEP::m - best_betabeta->source_vtx[1], 2);
 	  if (tmp_deltar2_bb_cluster < deltar2_bb_cluster) deltar2_bb_cluster = tmp_deltar2_bb_cluster;
 
 	  // deltar cell - calo1 vertex
+	  tmp_deltar2_bb_cluster = 0;
 	  tmp_deltar2_bb_cluster += std::pow(tracker_hit->get_x()/CLHEP::m - best_betabeta->calo_vtx1[0], 2);
 	  tmp_deltar2_bb_cluster += std::pow(tracker_hit->get_y()/CLHEP::m - best_betabeta->calo_vtx1[1], 2);
 	  if (tmp_deltar2_bb_cluster < deltar2_bb_cluster) deltar2_bb_cluster = tmp_deltar2_bb_cluster;
 
 	  // deltar cell - calo2 vertex
+	  tmp_deltar2_bb_cluster = 0;
 	  tmp_deltar2_bb_cluster += std::pow(tracker_hit->get_x()/CLHEP::m - best_betabeta->calo_vtx2[0], 2);
 	  tmp_deltar2_bb_cluster += std::pow(tracker_hit->get_y()/CLHEP::m - best_betabeta->calo_vtx2[1], 2);
 	  if (tmp_deltar2_bb_cluster < deltar2_bb_cluster) deltar2_bb_cluster = tmp_deltar2_bb_cluster;
@@ -444,11 +469,12 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 	const float deltar_bb_cluster = std::sqrt(deltar2_bb_cluster);
 	_output_deltar_bb_cluster_->Fill(deltar_bb_cluster);
 
-	// printf("[%d_%d] extra cluster with deltat = %.3f us and deltar = %.3f m\n", eh_run, eh_event, deltat_bb_cluster, deltar_bb_cluster);
+	printf("[%d_%d] extra cluster with deltat = %.3f us and deltar = %.3f m\n", eh_run, eh_event, deltat_bb_cluster, deltar_bb_cluster);
 	_output_deltart_bb_cluster_->Fill(deltat_bb_cluster, deltar_bb_cluster);
 
 	// perform betabeta veto if cluster is correlated in time
-	if ((-2.5 < deltat_bb_cluster) && (deltat_bb_cluster < +5.0)) {
+	// if ((-2.5 < deltat_bb_cluster) && (deltat_bb_cluster < +5.0)) {
+	if (std::abs(deltat_bb_cluster) < _deltat_extra_cluster_) {
 	  has_correlated_cluster = true;
 	  break;
 	}
@@ -473,7 +499,7 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 	// printf("[%d_%d] extra calo with deltat = %.3f ns\n", eh_run, eh_event, deltat_bb_calo);
 	_output_deltat_bb_calo_->Fill(deltat_bb_calo);
 
-	if (std::abs(deltat_bb_calo) < 25.0)
+	if (std::abs(deltat_bb_calo) < _deltat_extra_calo_)
 	  has_correlated_calo = true;
       }
 
