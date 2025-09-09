@@ -1,0 +1,25 @@
+#@description pipeline using betabeta selection module
+#@key_label  "name"
+#@meta_label "type"
+
+[name="flreconstruct" type="flreconstruct::section"]
+experimentalSetupURN : string = "urn:snemo:demonstrator:setup:2.0"
+
+[name="flreconstruct.plugins" type="flreconstruct::section"]
+plugins : string[1] = "FalaiseModules"
+FalaiseModules.directory : string = "@PROJECT_BINARY_DIR@"
+
+[name="pipeline" type="dpp::chain_module"]
+modules : string[1] = "betabeta_selection"
+
+[name="betabeta_selection" type="betabeta_selection_module"]
+PTD_label : string = "PTD"
+output_filename : string = "betabeta.root"
+
+# deltat_extra_calo: any extra calo hit within +/- this time
+# range of the bb candidate will be considered as intime
+deltat_extra_calo : real = 25.0 # ns
+
+# deltat_extra_cluster: any extra cluster within +/- this time
+# range of the bb candidate will be considered as intime
+deltat_extra_cluster : real = 5.0 # us

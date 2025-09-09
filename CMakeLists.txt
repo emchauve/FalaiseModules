@@ -24,5 +24,7 @@ add_library(FalaiseModules SHARED
 
 target_link_libraries(FalaiseModules Falaise::FalaiseModule)
 
+# for file in conf/*in ...
+configure_file("conf/betabeta-selection-pipeline.conf.in" "betabeta-selection-pipeline.conf")
 configure_file("conf/cd-killer-pipeline.conf.in" "cd-killer-pipeline.conf")
 configure_file("conf/ttd-residual-pipeline.conf.in" "ttd-residual-pipeline.conf")

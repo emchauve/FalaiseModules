@@ -1,4 +1,4 @@
-#@description pipeline using FalaiseModules library
+#@description pipeline using TTD residual module
 #@key_label  "name"
 #@meta_label "type"
 
