@@ -248,8 +248,10 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 	new_beta.length += std::pow(new_beta.calo_vtx[xyz]-new_beta.source_vtx[xyz],2);
       new_beta.length = std::sqrt(new_beta.length);
 
-      new_beta.flag = cluster_side[new_beta.cluster_id];
+      new_beta.cluster_id = particle->get_trajectory().get_cluster().get_cluster_id();
+      new_beta.particle_id = particle->get_track_id();
 
+      new_beta.flag = cluster_side[new_beta.cluster_id];
       new_beta.om_num = snemo::datamodel::om_num(calo_hit->get_geom_id());
 
       new_beta.nb_cells = particle->get_trajectory().get_cluster().size();
@@ -257,15 +259,10 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
       new_beta.nb_cells = particle->get_trajectory().get_cluster().size();
 
-      new_beta.cluster_id = particle->get_trajectory().get_cluster().get_cluster_id();
-      new_beta.particle_id = particle->get_track_id();
-
       // for (const auto & tracker_hit : particle->get_trajectory().get_cluster().hits())
       // 	new_beta.mean_anode += tracker_hit->get_anode_time() / CLHEP::ns; // utiliser pCD anodic time ...
       // new_beta.mean_anode /= particle->get_trajectory().get_cluster().hits().size();
       new_beta.mean_anode = cluster_mean_anodic_time[new_beta.cluster_id];
-
-      betas.push_back(new_beta);
 
     } // for (particle)
 
@@ -323,8 +320,6 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
       // store the betabeta candidates
       new_betabeta.run = eh_run;
       new_betabeta.event = eh_event;
-      new_betabeta.flag = 0;
-
       new_betabeta.flag = 0;
 
       if (beta_1.flag & 0x1)

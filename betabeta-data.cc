@@ -22,14 +22,14 @@ struct beta_data
   float length;
   double mean_anode;
 
+  uint16_t cluster_id;
+  uint16_t particle_id;
+
   uint16_t flag;
   uint16_t om_num;
 
   uint16_t nb_cells;
   uint16_t nb_cells_withz;
-
-  uint16_t cluster_id;
-  uint16_t particle_id;
 };
 
 struct gamma_data
