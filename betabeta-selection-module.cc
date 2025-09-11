@@ -252,6 +252,11 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
       new_beta.particle_id = particle->get_track_id();
 
       new_beta.flag = cluster_side[new_beta.cluster_id];
+      // retrieve waveform flagging data
+      const int pcd_index = calo_hit->get_auxiliaries().fetch_integer("pCD.parent");
+      const datatools::properties & pcd_properties = pCD.calorimeter_hits()[pcd_index]->get_auxiliaries();
+      if (pcd_properties.has_key("waveform.pileup")) new_beta.flag |= (1 << 3);
+
       new_beta.om_num = snemo::datamodel::om_num(calo_hit->get_geom_id());
 
       new_beta.nb_cells = particle->get_trajectory().get_cluster().size();
@@ -330,6 +335,9 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
 
       if ((beta_1.flag & 0x1) == (beta_2.flag & 0x1))
 	new_betabeta.flag |= (1 << 2); // 0x4 = same side bit
+
+      if ((beta_1.flag & 0x8) || (beta_2.flag & 0x8))
+	new_betabeta.flag |= (1 << 3); // 0x8 = pileup waveform
 
       new_betabeta.cluster1 = beta_1.cluster_id;
       new_betabeta.cluster2 = beta_2.cluster_id;
@@ -521,9 +529,7 @@ dpp::chain_module::process_status betabeta_selection_module::process(datatools::
       // best_betabeta->flag |= (1 << 0); // 0x1 = side1 bit
       // best_betabeta->flag |= (1 << 1); // 0x2 = side2 bit
       // best_betabeta->flag |= (1 << 2); // 0x4 = same side bit
-
-      // if (xxxxxxxx)
-      //   best_betabeta->flag |= (1 << 3); // 0x8
+      // best_betabeta->flag |= (1 << 3); // 0x8 = pileup waveform
 
       if (has_intime_cluster)
         best_betabeta->flag |= (1 << 4); // 0x10 = intime cluster
