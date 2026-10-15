@@ -35,9 +35,15 @@ struct om_data
 {
   uint16_t om_num;
 
+  float amplitude;
+  float charge;
   float energy;
   float time;
+
+  double raw_time;
+
   // uint16_t flag;
+  // waveform ?
 };
 
 ////////////////////////////////
@@ -70,6 +76,7 @@ struct track_data
   float phi;
 
   float chi2ndf;
+  // float time; !!!!!!
 
   std::vector<cell_data> cells;
   std::vector<cell_data> missed_cells;

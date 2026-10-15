@@ -8,7 +8,8 @@
 #include <falaise/snemo/datamodels/calibrated_calorimeter_hit.h>
 #include <falaise/snemo/datamodels/calibrated_data.h>
 #include <falaise/snemo/datamodels/line_trajectory_pattern.h>
-#include <falaise/snemo/datamodels/precalibrated_tracker_hit.h>
+#include <falaise/snemo/datamodels/precalibrated_calorimeter_hit.h>
+#include <falaise/snemo/datamodels/precalibrated_data.h>
 #include <falaise/snemo/datamodels/tracker_clustering_data.h>
 #include <falaise/snemo/datamodels/tracker_digitized_hit.h>
 #include <falaise/snemo/datamodels/tracker_trajectory_data.h>
@@ -587,16 +588,27 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
   ////////////////////////////////
 
+  const snemo::datamodel::precalibrated_data & pCD = event.get<snemo::datamodel::precalibrated_data>("pCD");
   const snemo::datamodel::calibrated_data & CD = event.get<snemo::datamodel::calibrated_data>("CD");
 
   for (const datatools::handle<snemo::datamodel::calibrated_calorimeter_hit> & calo_hit : CD.calorimeter_hits())
     {
+      // retrieve pCD data
+      const int pcd_index = calo_hit->get_auxiliaries().fetch_integer("pCD.parent");
+      // const snemo::datamodel::precalibrated_calorimeter_hit & pcd_calo_hit = pCD.calorimeter_hits()[pcd_index].get();
+      const auto pcd_calo_hit = pCD.calorimeter_hits()[pcd_index];
+
       _ttd_data_.calos.push_back(om_data());
       om_data & _om_data_ = _ttd_data_.calos.back();
 
       _om_data_.om_num = snemo::datamodel::om_num(calo_hit->get_geom_id());
+
+      _om_data_.amplitude = pcd_calo_hit->get_amplitude()/(1E-3*CLHEP::volt);
+      _om_data_.charge = -pcd_calo_hit->get_charge()/(1E-9*CLHEP::volt*CLHEP::second);
       _om_data_.energy = calo_hit->get_energy()/CLHEP::MeV;
-      _om_data_.time = calo_hit->get_time()/CLHEP::ns;
+      _om_data_.time = -calo_hit->get_time()/CLHEP::ns;
+
+      _om_data_.raw_time = pcd_calo_hit->get_time()/CLHEP::second;
     }
 
   // ttd_residual_data_print(_ttd_data_);

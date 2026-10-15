@@ -56,7 +56,7 @@ void bank_removal_module::initialize(const datatools::properties & config,
 dpp::chain_module::process_status bank_removal_module::process(datatools::things &event)
 {
   for (const std::string & bank_to_remove : _banks_to_remove_)
-    // if (event.has(bank_to_remove))
+    if (event.has(bank_to_remove))
       event.remove(bank_to_remove);
 
   return dpp::base_module::PROCESS_SUCCESS;
