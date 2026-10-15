@@ -78,6 +78,8 @@ struct track_data
   float chi2ndf;
   // float time; !!!!!!
 
+  double raw_time;
+
   std::vector<cell_data> cells;
   std::vector<cell_data> missed_cells;
 };

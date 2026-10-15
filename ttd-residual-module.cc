@@ -133,6 +133,8 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
   if ((_ttd_data_.event % 10000) == 0)
     printf("[%d_%d]\n", _ttd_data_.run, _ttd_data_.event);
 
+  const snemo::datamodel::precalibrated_data & pCD = event.get<snemo::datamodel::precalibrated_data>("pCD");
+  const snemo::datamodel::calibrated_data & CD = event.get<snemo::datamodel::calibrated_data>("CD");
   const snemo::datamodel::tracker_clustering_data & TCD = event.get<snemo::datamodel::tracker_clustering_data>("TCD");
 
   const snemo::datamodel::tracker_trajectory_solution & ttd_solution = TTD.get_default_solution();
@@ -140,21 +142,37 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
   ////////////////////////////////
 
-  // loop over clusters and prepare the cluster_to_ttd map
+  const size_t nb_clusters = tcd_solution.get_clusters().size();
+
+  // compute cluster mean anodic time (use as "cluster time")
+
+  std::vector<double> cluster_mean_anodic_time;
+  cluster_mean_anodic_time.reserve(nb_clusters);
+
+  for (const datatools::handle<snemo::datamodel::tracker_cluster> & cluster : tcd_solution.get_clusters()) {
+
+    double anodic_time_sum = 0;
+
+    for (const datatools::handle<snemo::datamodel::calibrated_tracker_hit> & tracker_hit : cluster->hits()) {
+
+      const int pcd_index = tracker_hit->get_auxiliaries().fetch_integer("pCD.parent");
+      anodic_time_sum += pCD.tracker_hits()[pcd_index]->get_anodic_time();
+
+    } // for (tracker_hit)
+
+    cluster_mean_anodic_time.push_back(anodic_time_sum / cluster->hits().size());
+
+  } // for (cluster)
+
+  // prepare mapping of cluster index to trajectory index
 
   std::vector<std::vector<int>> cluster_to_ttd;
+  cluster_to_ttd.reserve(nb_clusters);
 
-  const int nb_clusters = tcd_solution.get_clusters().size();
-
-  for (int c=0; c<nb_clusters; c++)
-    {
-      std::vector<int> a_vector;
-      cluster_to_ttd.push_back(a_vector);
-    }
-
-  ////////////////////////////////
-
-  // iterate over trajectories to identify multiple trajectory for single cluster;
+  for (size_t c=0; c<nb_clusters; c++) {
+    std::vector<int> a_vector;
+    cluster_to_ttd.push_back(a_vector);
+  }
 
   for (const datatools::handle<snemo::datamodel::tracker_trajectory> & ttd_trajectory : ttd_solution.get_trajectories())
     {
@@ -221,18 +239,21 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     track_data & _track_data_ = _ttd_data_.tracks.back();
 
     _track_data_.flag = 0;
-    for (int xyz=0; xyz<3; xyz++)
-      {
-	_track_data_.first[xyz] = line_first_point[xyz];
-	_track_data_.last[xyz] = line_last_point[xyz];
-	_track_data_.length += std::pow(line_last_point[xyz] - line_first_point[xyz], 2);
-      }
+
+    for (int xyz=0; xyz<3; xyz++) {
+      _track_data_.first[xyz] = line_first_point[xyz];
+      _track_data_.last[xyz] = line_last_point[xyz];
+      _track_data_.length += std::pow(line_last_point[xyz] - line_first_point[xyz], 2);
+    }
+
     _track_data_.length = std::sqrt(_track_data_.length);
     _track_data_.theta = theta_from_fit;
     _track_data_.phi = phi_from_fit;
 
     _track_data_.chi2ndf = ttd_trajectory->get_fit_infos().get_chi2();
     _track_data_.chi2ndf /= ttd_trajectory->get_fit_infos().get_ndof();
+
+    _track_data_.raw_time = cluster_mean_anodic_time[ttd_trajectory->get_cluster().get_cluster_id()]/CLHEP::second;
 
     // printf("[%d_%d:%d]   phi %.1f   theta = %.1f\n", _ttd_data_.run, _ttd_data_.event,
     // 	   ttd_trajectory->get_id(), phi_from_fit, theta_from_fit);
@@ -587,9 +608,6 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
 
   ////////////////////////////////
-
-  const snemo::datamodel::precalibrated_data & pCD = event.get<snemo::datamodel::precalibrated_data>("pCD");
-  const snemo::datamodel::calibrated_data & CD = event.get<snemo::datamodel::calibrated_data>("CD");
 
   for (const datatools::handle<snemo::datamodel::calibrated_calorimeter_hit> & calo_hit : CD.calorimeter_hits())
     {

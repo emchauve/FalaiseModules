@@ -605,40 +605,64 @@ TH1F mw_vtx_om_z ("mw_vtx_om_z", "MW VERTEX;Z (m);", 800, -2, 2);
 TF1 mw_vtx_om_yfit ("mw_vtx_om_yfit", gate1d_func, -3, 3, 5);
 TF1 mw_vtx_om_zfit ("mw_vtx_om_zfit", gate1d_func, -2, 2, 5);
 
+TH1F deltat_track_om_histo ("deltat_track_om", "#DeltaT (us)", 500, -0.5, 4.5);
+
 void fit_vertex_om (const int om_num)
 {
-
   ttd_residual_data *ttd_data = new ttd_residual_data;
   ttd_residual->SetBranchAddress("ttd", &ttd_data);
 
   const int ttd_entries = ttd_residual->GetEntries();
+  const int ttd_modulo_entries = ttd_entries/100;
+
   const int mw_flag = (om_num < 260) ? 0x20 : 0x21;
   const int vtx_sgn = (om_num < 260) ? -1 : +1;
+
   mw_vtx_om.Reset();
   mw_vtx_om_y.Reset();
   mw_vtx_om_z.Reset();
+
+  deltat_track_om_histo.Reset();
 
   for (int entry=0; entry<ttd_entries; entry++) {
 
     ttd_residual->GetEntry(entry);
 
+    if ((entry % ttd_modulo_entries) == 0) {
+      printf("\r %3d %% ", entry*100/ttd_entries);
+      fflush(stdout);}
+
     bool has_om = false;
-    for (const om_data & om_d : ttd_data->calos)
+    int om_index = 0;
+
+    for (const om_data & om_d : ttd_data->calos) {
       if (om_d.om_num == om_num) {
-	has_om = true; break;
-      }
+	has_om = true; break;}
+      om_index++;
+    }
 
     if (!has_om) continue;
 
+    const om_data & om_d = ttd_data->calos[om_index];
+
     for (const track_data & track_d : ttd_data->tracks) {
+
       if ((track_d.flag & mw_flag) != mw_flag) continue;
+
       if (track_d.cells.size() < 8) continue;
+
+      const double deltat_track_om = track_d.raw_time - om_d.raw_time;
+      if ((deltat_track_om < 0) || (deltat_track_om > 4E-6)) continue;
+      deltat_track_om_histo.Fill(deltat_track_om*1E6);
+
       mw_vtx_om.Fill(vtx_sgn*track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
       mw_vtx_om_y.Fill(vtx_sgn*track_d.mw_vtx[0]/1E3);
       mw_vtx_om_z.Fill(track_d.mw_vtx[1]/1E3);
     }
 
   } // for (entry)
+
+  printf("\n");
 
   TCanvas *C0 = (TCanvas *)(gROOT->FindObject("C_draw_vertex_om_2d"));
   if (C0 == nullptr)  C0 = new TCanvas ("C_draw_vertex_om_2d", "");
