@@ -53,7 +53,7 @@ struct track_data
   // uint8_t tcd_id;
   // uint8_t ttd_id;
 
-  uint32_t flag;
+  uint16_t flag;
   // 0x01 = side
   // 0x02 = delayed
   // 0x04
@@ -62,6 +62,12 @@ struct track_data
   // 0x20 = has MW vertex
   // 0x40 = has XW0 vertex
   // 0x80 = has XW1 vertex
+  uint16_t nb_cells;
+
+  uint8_t row_min;
+  uint8_t row_max;
+  uint8_t layer_min;
+  uint8_t layer_max;
 
   float first[3];
   float last[3];
@@ -76,9 +82,10 @@ struct track_data
   float phi;
 
   float chi2ndf;
-  // float time; !!!!!!
 
-  double raw_time;
+  // double raw_time;
+  double first_raw_time;
+  double mean_raw_time;
 
   std::vector<cell_data> cells;
   std::vector<cell_data> missed_cells;

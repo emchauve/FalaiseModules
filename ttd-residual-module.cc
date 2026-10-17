@@ -70,6 +70,7 @@ private:
 
   std::string _ttd_label_;
   std::string _output_filename_;
+  bool _store_cell_data_;
 
   ttd_residual_data _ttd_data_;
 
@@ -101,6 +102,7 @@ void ttd_residual_module::initialize(const datatools::properties & config,
 
   _ttd_label_ = fps.get<std::string>("TTD_label", "TTD");
   _output_filename_ = fps.get<std::string>("output_filename", "output.root");
+  _store_cell_data_ = fps.get<bool>("store_cell_data", false);
 
   // prepare ROOT output file/tree
   _output_file_ = new TFile(_output_filename_.c_str(), "RECREATE");
@@ -146,21 +148,31 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
   // compute cluster mean anodic time (use as "cluster time")
 
+  std::vector<double> cluster_first_anodic_time;
+  cluster_first_anodic_time.reserve(nb_clusters);
+
   std::vector<double> cluster_mean_anodic_time;
   cluster_mean_anodic_time.reserve(nb_clusters);
 
   for (const datatools::handle<snemo::datamodel::tracker_cluster> & cluster : tcd_solution.get_clusters()) {
 
+    double first_anodic_time = std::numeric_limits<double>::max();
     double anodic_time_sum = 0;
 
     for (const datatools::handle<snemo::datamodel::calibrated_tracker_hit> & tracker_hit : cluster->hits()) {
 
       const int pcd_index = tracker_hit->get_auxiliaries().fetch_integer("pCD.parent");
-      anodic_time_sum += pCD.tracker_hits()[pcd_index]->get_anodic_time();
+      const double anodic_time = pCD.tracker_hits()[pcd_index]->get_anodic_time();
+
+      if (anodic_time < first_anodic_time)
+	first_anodic_time = anodic_time;
+
+      anodic_time_sum += anodic_time;
 
     } // for (tracker_hit)
 
-    cluster_mean_anodic_time.push_back(anodic_time_sum / cluster->hits().size());
+    cluster_first_anodic_time.push_back(first_anodic_time);
+    cluster_mean_anodic_time.push_back(anodic_time_sum/cluster->hits().size());
 
   } // for (cluster)
 
@@ -239,6 +251,12 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     track_data & _track_data_ = _ttd_data_.tracks.back();
 
     _track_data_.flag = 0;
+    _track_data_.nb_cells = ttd_trajectory->get_cluster().hits().size();
+
+    _track_data_.row_min = std::numeric_limits<uint8_t>::max();
+    _track_data_.row_max = std::numeric_limits<uint8_t>::min();
+    _track_data_.layer_min = std::numeric_limits<uint8_t>::max();
+    _track_data_.layer_max = std::numeric_limits<uint8_t>::min();
 
     for (int xyz=0; xyz<3; xyz++) {
       _track_data_.first[xyz] = line_first_point[xyz];
@@ -253,18 +271,18 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     _track_data_.chi2ndf = ttd_trajectory->get_fit_infos().get_chi2();
     _track_data_.chi2ndf /= ttd_trajectory->get_fit_infos().get_ndof();
 
-    _track_data_.raw_time = cluster_mean_anodic_time[ttd_trajectory->get_cluster().get_cluster_id()]/CLHEP::second;
+    _track_data_.first_raw_time = cluster_first_anodic_time[ttd_trajectory->get_cluster().get_cluster_id()]/CLHEP::second;
+    _track_data_.mean_raw_time = cluster_mean_anodic_time[ttd_trajectory->get_cluster().get_cluster_id()]/CLHEP::second;
 
     // printf("[%d_%d:%d]   phi %.1f   theta = %.1f\n", _ttd_data_.run, _ttd_data_.event,
     // 	   ttd_trajectory->get_id(), phi_from_fit, theta_from_fit);
 
     uint32_t trajectory_side = 0;
 
-    uint32_t cluster_row_min = std::numeric_limits<uint32_t>::max();
-    uint32_t cluster_row_max = std::numeric_limits<uint32_t>::min();
-
-    uint32_t cluster_layer_min = std::numeric_limits<uint32_t>::max();
-    uint32_t cluster_layer_max = std::numeric_limits<uint32_t>::min();
+    // uint32_t cluster_row_min = std::numeric_limits<uint32_t>::max();
+    // uint32_t cluster_row_max = std::numeric_limits<uint32_t>::min();
+    // uint32_t cluster_layer_min = std::numeric_limits<uint32_t>::max();
+    // uint32_t cluster_layer_max = std::numeric_limits<uint32_t>::min();
 
     bool cluster_has_cell[2034];
     memset(cluster_has_cell, 0, sizeof(cluster_has_cell));
@@ -273,15 +291,15 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
       trajectory_side = tracker_hit->get_geom_id().get(1);
 
-      if (tracker_hit->get_geom_id().get(2) < cluster_layer_min)
-	cluster_layer_min = tracker_hit->get_geom_id().get(2);
-      if (tracker_hit->get_geom_id().get(2) > cluster_layer_max)
-	cluster_layer_max = tracker_hit->get_geom_id().get(2);
+      if (tracker_hit->get_geom_id().get(2) < _track_data_.layer_min)
+	_track_data_.layer_min = tracker_hit->get_geom_id().get(2);
+      if (tracker_hit->get_geom_id().get(2) > _track_data_.layer_max)
+	_track_data_.layer_max = tracker_hit->get_geom_id().get(2);
 
-      if (tracker_hit->get_geom_id().get(3) < cluster_row_min)
-	cluster_row_min = tracker_hit->get_geom_id().get(3);
-      if (tracker_hit->get_geom_id().get(3) > cluster_row_max)
-	cluster_row_max = tracker_hit->get_geom_id().get(3);
+      if (tracker_hit->get_geom_id().get(3) < _track_data_.row_min)
+	_track_data_.row_min = tracker_hit->get_geom_id().get(3);
+      if (tracker_hit->get_geom_id().get(3) > _track_data_.row_max)
+	_track_data_.row_max = tracker_hit->get_geom_id().get(3);
 
       const uint16_t gg_num = snemo::datamodel::gg_num(tracker_hit->get_geom_id());
       cluster_has_cell[gg_num] = true;
@@ -305,35 +323,40 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
       const datatools::properties & tracker_hit_properties = tracker_hit->get_auxiliaries();
 
-      // prepare new cell_data entry and fill it
-      _track_data_.cells.push_back(cell_data());
-      cell_data & _cell_data_ = _track_data_.cells.back();
 
-      _cell_data_.flag = 0;
-      _cell_data_.gg_num = gg_num;
-      _cell_data_.time_anode = tracker_hit->get_anode_time();
+      if (_store_cell_data_) {
 
-      if (tracker_hit_properties.has_key("bottom_drift_time")) {
-	_cell_data_.time_bottom_cathode = tracker_hit_properties.fetch_real("bottom_drift_time");
-	_cell_data_.flag |= (1 << 0);
-      } else _cell_data_.time_bottom_cathode = 0;
+	// prepare new cell_data entry and fill it
+	_track_data_.cells.push_back(cell_data());
+	cell_data & _cell_data_ = _track_data_.cells.back();
 
-      if (tracker_hit_properties.has_key("top_drift_time")) {
-	_cell_data_.time_top_cathode = tracker_hit_properties.fetch_real("top_drift_time");
-	_cell_data_.flag |= (1 << 1);
-      } else _cell_data_.time_top_cathode = 0;
+	_cell_data_.flag = 0;
+	_cell_data_.gg_num = gg_num;
+	_cell_data_.time_anode = tracker_hit->get_anode_time();
 
-      _cell_data_.r = radius_from_cd;
-      _cell_data_.z = height_from_cd;
-      _cell_data_.xfit = nearest_line_point.x() - tracker_hit_x;
-      _cell_data_.yfit = nearest_line_point.y() - tracker_hit_y;
-      _cell_data_.rfit = radius_from_fit;
-      _cell_data_.zfit = height_from_fit;
+	if (tracker_hit_properties.has_key("bottom_drift_time")) {
+	  _cell_data_.time_bottom_cathode = tracker_hit_properties.fetch_real("bottom_drift_time");
+	  _cell_data_.flag |= (1 << 0);
+	} else _cell_data_.time_bottom_cathode = 0;
 
-      // printf("[%d_%d] gg %4d : anode = %5.2f us   bottom = %5.1f us   top = %5.1f us   r = %5.2f mm   rfit = %5.2f mm   z = %5.2f cm   zfit = %5.2f cm\n",
-      // 	     _ttd_data_.run, _ttd_data_.event, _cell_data_.gg_num, _cell_data_.time_anode/CLHEP::microsecond,
-      // 	     _cell_data_.time_bottom_cathode/CLHEP::microsecond, _cell_data_.time_top_cathode/CLHEP::microsecond,
-      // 	     _cell_data_.r/CLHEP::mm, _cell_data_.rfit/CLHEP::mm, _cell_data_.z/CLHEP::cm, _cell_data_.zfit/CLHEP::cm);
+	if (tracker_hit_properties.has_key("top_drift_time")) {
+	  _cell_data_.time_top_cathode = tracker_hit_properties.fetch_real("top_drift_time");
+	  _cell_data_.flag |= (1 << 1);
+	} else _cell_data_.time_top_cathode = 0;
+
+	_cell_data_.r = radius_from_cd;
+	_cell_data_.z = height_from_cd;
+	_cell_data_.xfit = nearest_line_point.x() - tracker_hit_x;
+	_cell_data_.yfit = nearest_line_point.y() - tracker_hit_y;
+	_cell_data_.rfit = radius_from_fit;
+	_cell_data_.zfit = height_from_fit;
+
+	// printf("[%d_%d] gg %4d : anode = %5.2f us   bottom = %5.1f us   top = %5.1f us   r = %5.2f mm   rfit = %5.2f mm   z = %5.2f cm   zfit = %5.2f cm\n",
+	// 	     _ttd_data_.run, _ttd_data_.event, _cell_data_.gg_num, _cell_data_.time_anode/CLHEP::microsecond,
+	// 	     _cell_data_.time_bottom_cathode/CLHEP::microsecond, _cell_data_.time_top_cathode/CLHEP::microsecond,
+	// 	     _cell_data_.r/CLHEP::mm, _cell_data_.rfit/CLHEP::mm, _cell_data_.z/CLHEP::cm, _cell_data_.zfit/CLHEP::cm);
+
+      }
 
       // flag on cell's neighbour configuration
       //  9 1 2
@@ -348,9 +371,9 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
     // scan the cluster box area and look for untriggered cells
 
-    for (uint32_t cell_row=cluster_row_min; cell_row<=cluster_row_max; cell_row++) {
+    for (uint32_t cell_row=_track_data_.row_min; cell_row<=_track_data_.row_max; cell_row++) {
 
-      for (uint32_t cell_layer=cluster_layer_min; cell_layer<=cluster_layer_max; cell_layer++) {
+      for (uint32_t cell_layer=_track_data_.layer_min; cell_layer<=_track_data_.layer_max; cell_layer++) {
 
 	const uint16_t gg_num = trajectory_side*1017 + cell_row*9 + cell_layer;
 
@@ -383,14 +406,17 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
 	  // printf("[%d_%d] missed gg %d/%d/%d\n", _ttd_data_.run, _ttd_data_.event, trajectory_side, cell_row, cell_layer);
 
-	  _track_data_.missed_cells.push_back(cell_data());
-	  cell_data & _missed_cell_data_ = _track_data_.missed_cells.back();
-	  _missed_cell_data_.gg_num = gg_num;
-	  _missed_cell_data_.flag = 0x10; // missed-in
-	  _missed_cell_data_.xfit = nearest_line_point_missed.x() - tracker_hit_x;
-	  _missed_cell_data_.yfit = nearest_line_point_missed.y() - tracker_hit_y;
-	  _missed_cell_data_.rfit = std::sqrt(std::pow(nearest_delta_x,2) + std::pow(nearest_delta_y,2));
-	  _missed_cell_data_.zfit = nearest_line_point_missed.z();
+	  if (_store_cell_data_) {
+	    _track_data_.missed_cells.push_back(cell_data());
+	    cell_data & _missed_cell_data_ = _track_data_.missed_cells.back();
+	    _missed_cell_data_.gg_num = gg_num;
+	    _missed_cell_data_.flag = 0x10; // missed-in
+	    _missed_cell_data_.xfit = nearest_line_point_missed.x() - tracker_hit_x;
+	    _missed_cell_data_.yfit = nearest_line_point_missed.y() - tracker_hit_y;
+	    _missed_cell_data_.rfit = std::sqrt(std::pow(nearest_delta_x,2) + std::pow(nearest_delta_y,2));
+	    _missed_cell_data_.zfit = nearest_line_point_missed.z();
+	  }
+
 	}
 
 	else {
@@ -421,10 +447,10 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 	  if (intersect) {
 
 	    if (intersect_xlow && intersect_xup)
-	      printf("*** intersect xlow AND xup (this should not happend)\n");
+	      printf("*** intersect xlow AND xup (this should not happen)\n");
 
 	    if (intersect_ylow && intersect_yup)
-	      printf("*** intersect ylow AND yup (this should not happend)\n");
+	      printf("*** intersect ylow AND yup (this should not happen)\n");
 
 	    int intersect_deltaxy_min_case = 0;
 	    double intersect_deltaxy_min = 0;
@@ -488,16 +514,18 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 	    // if (intersect_ylow)
 	    //   deltar2_intersect_x = std::pow(,2) + std::power()
 
-	    _track_data_.missed_cells.push_back(cell_data());
-	    cell_data & _missed_cell_data_ = _track_data_.missed_cells.back();
-	    _missed_cell_data_.gg_num = gg_num;
-	    _missed_cell_data_.flag = 0x20; // missed-out
-	    _missed_cell_data_.xfit = nearest_line_point_missed.x() - tracker_hit_x;
-	    _missed_cell_data_.yfit = nearest_line_point_missed.y() - tracker_hit_y;
-	    _missed_cell_data_.rfit = std::sqrt(std::pow(nearest_delta_x,2) + std::pow(nearest_delta_y,2));
-	    _missed_cell_data_.zfit = nearest_line_point_missed.z();
-	  }
+	    if (_store_cell_data_) {
+	      _track_data_.missed_cells.push_back(cell_data());
+	      cell_data & _missed_cell_data_ = _track_data_.missed_cells.back();
+	      _missed_cell_data_.gg_num = gg_num;
+	      _missed_cell_data_.flag = 0x20; // missed-out
+	      _missed_cell_data_.xfit = nearest_line_point_missed.x() - tracker_hit_x;
+	      _missed_cell_data_.yfit = nearest_line_point_missed.y() - tracker_hit_y;
+	      _missed_cell_data_.rfit = std::sqrt(std::pow(nearest_delta_x,2) + std::pow(nearest_delta_y,2));
+	      _missed_cell_data_.zfit = nearest_line_point_missed.z();
+	    }
 
+	  }
 	}
       }
     }
@@ -609,24 +637,31 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
   ////////////////////////////////
 
-  for (const datatools::handle<snemo::datamodel::calibrated_calorimeter_hit> & calo_hit : CD.calorimeter_hits())
+  for (const datatools::handle<snemo::datamodel::precalibrated_calorimeter_hit> & pcd_calo_hit : pCD.calorimeter_hits())
     {
-      // retrieve pCD data
-      const int pcd_index = calo_hit->get_auxiliaries().fetch_integer("pCD.parent");
-      // const snemo::datamodel::precalibrated_calorimeter_hit & pcd_calo_hit = pCD.calorimeter_hits()[pcd_index].get();
-      const auto pcd_calo_hit = pCD.calorimeter_hits()[pcd_index];
-
       _ttd_data_.calos.push_back(om_data());
       om_data & _om_data_ = _ttd_data_.calos.back();
 
-      _om_data_.om_num = snemo::datamodel::om_num(calo_hit->get_geom_id());
-
+      _om_data_.om_num = snemo::datamodel::om_num(pcd_calo_hit->get_geom_id());
       _om_data_.amplitude = pcd_calo_hit->get_amplitude()/(1E-3*CLHEP::volt);
       _om_data_.charge = -pcd_calo_hit->get_charge()/(1E-9*CLHEP::volt*CLHEP::second);
-      _om_data_.energy = calo_hit->get_energy()/CLHEP::MeV;
-      _om_data_.time = -calo_hit->get_time()/CLHEP::ns;
-
+      _om_data_.energy = 0; // => from CD hit
+      _om_data_.time   = 0; // => from CD hit
       _om_data_.raw_time = pcd_calo_hit->get_time()/CLHEP::second;
+    }
+
+  for (const datatools::handle<snemo::datamodel::calibrated_calorimeter_hit> & cd_calo_hit : CD.calorimeter_hits())
+    {
+      // retrieve pCD index
+      const int pcd_index = cd_calo_hit->get_auxiliaries().fetch_integer("pCD.parent");
+
+      om_data & _om_data_ = _ttd_data_.calos[pcd_index];
+
+      if (_om_data_.om_num != snemo::datamodel::om_num(cd_calo_hit->get_geom_id()))
+	printf("*** pCD index does not match om_data index (this should not happen)\n");
+
+      _om_data_.energy = cd_calo_hit->get_energy()/CLHEP::MeV;
+      _om_data_.time = cd_calo_hit->get_time()/CLHEP::ns;
     }
 
   // ttd_residual_data_print(_ttd_data_);
