@@ -710,6 +710,10 @@ void fit_vertex_om (const char *filename, const int om_num)
       // require at least one hit in layers 7/8
       if (track_d.layer_max < 7) continue;
 
+      // skip tracker of single row width
+      // (avoid left/right ambiguity cases)
+      if (track_d.row_min == track_d.row_max) continue;
+
       const double deltat_trackfirst_om = track_d.first_raw_time - om_d.raw_time;
       const double deltat_trackmean_om = track_d.mean_raw_time - om_d.raw_time;
       // deltat_trackfirst_om_histo.Fill(deltat_trackfirst_om*1E6);
@@ -744,16 +748,17 @@ void fit_vertex_om (const char *filename, const int om_num)
   mw_vtx_om_yfit.SetParNames("NORM", "Y0", "Ywidth", "Ysigma", "BG");
   mw_vtx_om_yfit.SetLineColor(kRed+1);
   mw_vtx_om_yfit.SetLineWidth(2);
-  mw_vtx_om_yfit.SetRange(mw_vtx_om_y.GetMean()-2*0.256, mw_vtx_om_y.GetMean()+2*0.256);
+  mw_vtx_om_yfit.SetRange(mw_vtx_om_y.GetMean()-1.5*0.256, mw_vtx_om_y.GetMean()+1.5*0.256);
   mw_vtx_om_yfit.SetParameter(0, mw_vtx_om_y.GetMaximum()*3);
   mw_vtx_om_yfit.SetParameter(1, mw_vtx_om_y.GetMean());
   mw_vtx_om_yfit.SetParameter(2, 0.375);
   mw_vtx_om_yfit.SetParameter(3, 0.025);
+  mw_vtx_om_yfit.SetParLimits(3, 0, 0.1);
   mw_vtx_om_yfit.SetParameter(4, 10);
   mw_vtx_om_yfit.SetNpx(100);
   mw_vtx_om_yfit.Draw("lsame");
   mw_vtx_om_y.Fit("mw_vtx_om_yfit", "0RQ");
-  mw_vtx_om_yfit.SetRange(mw_vtx_om_yfit.GetParameter(1)-1.25*0.256, mw_vtx_om_yfit.GetParameter(1)+1.25*0.256);
+  mw_vtx_om_yfit.SetRange(mw_vtx_om_yfit.GetParameter(1)-1.0*0.256, mw_vtx_om_yfit.GetParameter(1)+1.0*0.256);
   mw_vtx_om_y.Fit("mw_vtx_om_yfit", "0R");
 
   C->cd(2);
@@ -761,16 +766,17 @@ void fit_vertex_om (const char *filename, const int om_num)
   mw_vtx_om_zfit.SetParNames("NORM", "Z0", "Zwidth", "Zsigma", "BG");
   mw_vtx_om_zfit.SetLineColor(kRed+1);
   mw_vtx_om_zfit.SetLineWidth(2);
-  mw_vtx_om_zfit.SetRange(mw_vtx_om_z.GetMean()-2*0.256, mw_vtx_om_z.GetMean()+2*0.256);
+  mw_vtx_om_zfit.SetRange(mw_vtx_om_z.GetMean()-1.5*0.256, mw_vtx_om_z.GetMean()+1.5*0.256);
   mw_vtx_om_zfit.SetParameter(0, mw_vtx_om_z.GetMaximum()*3);
   mw_vtx_om_zfit.SetParameter(1, mw_vtx_om_z.GetMean());
   mw_vtx_om_zfit.SetParameter(2, 0.275);
   mw_vtx_om_zfit.SetParameter(3, 0.025);
+  mw_vtx_om_yfit.SetParLimits(3, 0, 0.1);
   mw_vtx_om_zfit.SetParameter(4, 10);
   mw_vtx_om_zfit.SetNpx(100);
   mw_vtx_om_zfit.Draw("lsame");
   mw_vtx_om_z.Fit("mw_vtx_om_zfit", "0RQ");
-  mw_vtx_om_zfit.SetRange(mw_vtx_om_zfit.GetParameter(1)-1.25*0.256, mw_vtx_om_zfit.GetParameter(1)+1.25*0.256);
+  mw_vtx_om_zfit.SetRange(mw_vtx_om_zfit.GetParameter(1)-1.0*0.256, mw_vtx_om_zfit.GetParameter(1)+1.0*0.256);
   mw_vtx_om_z.Fit("mw_vtx_om_zfit", "0R");
 
   printf("\n");
@@ -789,7 +795,7 @@ void fit_vertex_om (const char *filename, const int om_num)
   mw_vtx_om_yfit.SetParameter(3, 0.025);
   mw_vtx_om_yfit.SetParameter(4, 10);
   mw_vtxcutz_om_y.Fit("mw_vtx_om_yfit", "0RQ");
-  mw_vtx_om_yfit.SetRange(mw_vtx_om_yfit.GetParameter(1)-1.25*0.256, mw_vtx_om_yfit.GetParameter(1)+1.25*0.256);
+  mw_vtx_om_yfit.SetRange(mw_vtx_om_yfit.GetParameter(1)-1.0*0.256, mw_vtx_om_yfit.GetParameter(1)+1.0*0.256);
   mw_vtxcutz_om_y.Fit("mw_vtx_om_yfit", "0R");
   mw_vtx_om_yfit.Draw("lsame");
 
@@ -807,7 +813,7 @@ void fit_vertex_om (const char *filename, const int om_num)
   mw_vtx_om_zfit.SetParameter(3, 0.025);
   mw_vtx_om_zfit.SetParameter(4, 10);
   mw_vtxcuty_om_z.Fit("mw_vtx_om_zfit", "0RQ");
-  mw_vtx_om_zfit.SetRange(mw_vtx_om_zfit.GetParameter(1)-1.25*0.256, mw_vtx_om_zfit.GetParameter(1)+1.25*0.256);
+  mw_vtx_om_zfit.SetRange(mw_vtx_om_zfit.GetParameter(1)-1.0*0.256, mw_vtx_om_zfit.GetParameter(1)+1.0*0.256);
   mw_vtxcuty_om_z.Fit("mw_vtx_om_zfit", "0R");
   mw_vtx_om_zfit.Draw("lsame");
 
