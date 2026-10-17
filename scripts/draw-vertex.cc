@@ -1,3 +1,4 @@
+TTree *ttd_residual = nullptr;
 
 TH2F src_vtx_histo ("src_vtx_histo", "SOURCE VERTEX;Y (m); Z(m)", 3000, -3, 3, 2000, -2, 2);
 TH2F mw0_vtx_histo ("mw0_vtx_histo", "MW0 VERTEX;Y (m); Z(m)", 600, -3, 3, 400, -2, 2);
@@ -594,21 +595,40 @@ double gate1d_func (double *x, double *p)
   return X_bg + X_sum/nb_steps;
 }
 
-gStyle->SetOptFit(1);
+// gStyle->SetOptFit(1);
 
 // TH2F mw_vtx_om ("mw_vtx_om", ";Y (m);Z (m)", 230, -3000, 3000, 156, -2000, 2000); // ~10 bins per OM
 // TH2F mw_vtx_om ("mw_vtx_om", ";Y (m);Z (m)", 469, -3000, 3000, 312, -2000, 2000); // ~20 bins per OM
 // TH2F mw_vtx_om ("mw_vtx_om", ";Y (m);Z (m)", 1172, -3000, 3000, 781, -2000, 2000); // ~50 bins per OM
 TH2F mw_vtx_om ("mw_vtx_om", "MW VERTEX;Y (m); Z (m)", 600, -3, 3, 400, -2, 2);
-TH1F mw_vtx_om_y ("mw_vtx_om_y", "MW VERTEX;Y (m);", 1200, -3, 3);
-TH1F mw_vtx_om_z ("mw_vtx_om_z", "MW VERTEX;Z (m);", 800, -2, 2);
+TH1F mw_vtx_om_y ("mw_vtx_om_y", "MW VERTEX;Y (m);", 600, -3, 3);
+TH1F mw_vtx_om_z ("mw_vtx_om_z", "MW VERTEX;Z (m);", 400, -2, 2);
+TH1D mw_vtxcutz_om_y ("mw_vtxcutz_om_y", "MW VERTEX;Y (m);", 600, -3, 3);
+TH1D mw_vtxcuty_om_z ("mw_vtxcuty_om_z", "MW VERTEX;Z (m);", 400, -2, 2);
+TBox vtxcutbox;
+
 TF1 mw_vtx_om_yfit ("mw_vtx_om_yfit", gate1d_func, -3, 3, 5);
 TF1 mw_vtx_om_zfit ("mw_vtx_om_zfit", gate1d_func, -2, 2, 5);
 
-TH1F deltat_track_om_histo ("deltat_track_om", "#DeltaT (us)", 500, -0.5, 4.5);
+// TH1F deltat_trackfirst_om_histo ("deltat_trackfirst_om", ";#DeltaT (us);", 1500, -5, 10);
+// TH1F deltat_trackmean_om_histo ("deltat_trackmean_om", ";#DeltaT (us);", 1500, -5, 10);
+TH2F deltat_trackfirstmean_om_histo ("deltat_trackfirstmean_om", ";#DeltaT FIRST (us); #DeltaT MEAN (us)", 1500, -5, 10, 1500, -5, 10);
 
-void fit_vertex_om (const int om_num)
+TH1F om_energy_spectrum ("om_energy_spectrum", ";Visible Energy (MeV);", 200, 0, 5);
+
+void fit_vertex_om (const char *filename, const int om_num)
 {
+  gStyle->SetOptFit(1);
+
+  // hypothesis that om is MW type !!!
+  const int om_side = om_num/260;
+  const int om_column = (om_num-260*om_side)/13;
+  const int om_row = (om_num-260*om_side)%13;
+  printf("M:%d.%d.%d (om_num = %d)\n",om_side,om_column,om_row,om_num);
+
+  TFile file (filename, "READ"); gROOT->cd();
+  ttd_residual = (TTree*)(file.Get("ttd_residual"));
+
   ttd_residual_data *ttd_data = new ttd_residual_data;
   ttd_residual->SetBranchAddress("ttd", &ttd_data);
 
@@ -621,8 +641,14 @@ void fit_vertex_om (const int om_num)
   mw_vtx_om.Reset();
   mw_vtx_om_y.Reset();
   mw_vtx_om_z.Reset();
+  mw_vtxcutz_om_y.Reset();
+  mw_vtxcuty_om_z.Reset();
 
-  deltat_track_om_histo.Reset();
+  // deltat_trackfirst_om_histo.Reset();
+  // deltat_trackmean_om_histo.Reset();
+  deltat_trackfirstmean_om_histo.Reset();
+
+  om_energy_spectrum.Reset();
 
   for (int entry=0; entry<ttd_entries; entry++) {
 
@@ -633,27 +659,65 @@ void fit_vertex_om (const int om_num)
       fflush(stdout);}
 
     bool has_om = false;
+    bool has_neighbor_om = false;
+
     int om_index = 0;
+    int om_d_index = 0;
 
     for (const om_data & om_d : ttd_data->calos) {
-      if (om_d.om_num == om_num) {
-	has_om = true; break;}
-      om_index++;
+
+      const int om_d_num = om_d.om_num;
+
+      if (om_d_num == om_num) {
+	// if (om_d.energy < 1) continue;
+	om_index = om_d_index++;
+	has_om = true;
+	continue;
+      }
+
+      const int om_d_side = om_d_num/260;
+      const int om_d_column = (om_d_num-260*om_d_side)/13;
+      const int om_d_row = (om_d_num-260*om_d_side)%13;
+
+      if ((om_d_side == om_side) &&
+	  (std::abs(om_d_column-om_column) <= 1) &&
+	  (std::abs(om_d_row-om_row) <= 1))
+	has_neighbor_om = true;
+
+      om_d_index++;
     }
 
+    // reject event where requested OM is not active
     if (!has_om) continue;
 
+    // reject event with active neighbor OM(s)
+    if (has_neighbor_om) continue;
+
     const om_data & om_d = ttd_data->calos[om_index];
+    om_energy_spectrum.Fill(om_d.energy);
+
+    // reject event with too low energy
+    if (om_d.energy < 0.1)
+      continue;
 
     for (const track_data & track_d : ttd_data->tracks) {
 
       if ((track_d.flag & mw_flag) != mw_flag) continue;
 
-      if (track_d.cells.size() < 8) continue;
+      // track with at least 3 cells
+      if (track_d.nb_cells < 3) continue;
 
-      const double deltat_track_om = track_d.raw_time - om_d.raw_time;
-      if ((deltat_track_om < 0) || (deltat_track_om > 4E-6)) continue;
-      deltat_track_om_histo.Fill(deltat_track_om*1E6);
+      // require at least one hit in layers 7/8
+      if (track_d.layer_max < 7) continue;
+
+      const double deltat_trackfirst_om = track_d.first_raw_time - om_d.raw_time;
+      const double deltat_trackmean_om = track_d.mean_raw_time - om_d.raw_time;
+      // deltat_trackfirst_om_histo.Fill(deltat_trackfirst_om*1E6);
+      // deltat_trackmean_om_histo.Fill(deltat_trackmean_om*1E6);
+      deltat_trackfirstmean_om_histo.Fill(deltat_trackfirst_om*1E6, deltat_trackmean_om*1E6);
+
+      if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackmean_om > 3E-6)) continue;
+      // if ((deltat_trackmean_om < 0) || (deltat_trackmean_om > 4E-6)) continue;
 
       mw_vtx_om.Fill(vtx_sgn*track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
       mw_vtx_om_y.Fill(vtx_sgn*track_d.mw_vtx[0]/1E3);
@@ -708,6 +772,60 @@ void fit_vertex_om (const int om_num)
   mw_vtx_om_z.Fit("mw_vtx_om_zfit", "0RQ");
   mw_vtx_om_zfit.SetRange(mw_vtx_om_zfit.GetParameter(1)-1.25*0.256, mw_vtx_om_zfit.GetParameter(1)+1.25*0.256);
   mw_vtx_om_z.Fit("mw_vtx_om_zfit", "0R");
+
+  printf("\n");
+
+  float zmean = mw_vtx_om_zfit.GetParameter(1);
+  float zwidth = mw_vtx_om_zfit.GetParameter(2);
+  mw_vtx_om.GetYaxis()->SetRangeUser(zmean-0.256/2, zmean+0.256/2);
+  mw_vtx_om.ProjectionX("mw_vtxcutz_om_y");
+  mw_vtx_om.GetYaxis()->UnZoom();
+
+  C->cd(1);
+  mw_vtxcutz_om_y.Draw("e");
+  mw_vtx_om_yfit.SetParameter(0, mw_vtxcutz_om_y.GetMaximum()*3);
+  mw_vtx_om_yfit.SetParameter(1, mw_vtxcutz_om_y.GetMean());
+  mw_vtx_om_yfit.SetParameter(2, 0.275);
+  mw_vtx_om_yfit.SetParameter(3, 0.025);
+  mw_vtx_om_yfit.SetParameter(4, 10);
+  mw_vtxcutz_om_y.Fit("mw_vtx_om_yfit", "0RQ");
+  mw_vtx_om_yfit.SetRange(mw_vtx_om_yfit.GetParameter(1)-1.25*0.256, mw_vtx_om_yfit.GetParameter(1)+1.25*0.256);
+  mw_vtxcutz_om_y.Fit("mw_vtx_om_yfit", "0R");
+  mw_vtx_om_yfit.Draw("lsame");
+
+  float ymean = mw_vtx_om_yfit.GetParameter(1);
+  float ywidth = mw_vtx_om_yfit.GetParameter(2);
+  mw_vtx_om.GetXaxis()->SetRangeUser(ymean-0.256/2, ymean+0.256/2);
+  mw_vtx_om.ProjectionY("mw_vtxcuty_om_z");
+  mw_vtx_om.GetXaxis()->UnZoom();
+
+  C->cd(2);
+  mw_vtxcuty_om_z.Draw("e");
+  mw_vtx_om_zfit.SetParameter(0, mw_vtxcuty_om_z.GetMaximum()*3);
+  mw_vtx_om_zfit.SetParameter(1, mw_vtxcuty_om_z.GetMean());
+  mw_vtx_om_zfit.SetParameter(2, 0.275);
+  mw_vtx_om_zfit.SetParameter(3, 0.025);
+  mw_vtx_om_zfit.SetParameter(4, 10);
+  mw_vtxcuty_om_z.Fit("mw_vtx_om_zfit", "0RQ");
+  mw_vtx_om_zfit.SetRange(mw_vtx_om_zfit.GetParameter(1)-1.25*0.256, mw_vtx_om_zfit.GetParameter(1)+1.25*0.256);
+  mw_vtxcuty_om_z.Fit("mw_vtx_om_zfit", "0R");
+  mw_vtx_om_zfit.Draw("lsame");
+
+  ymean = mw_vtx_om_yfit.GetParameter(1);
+  ywidth = mw_vtx_om_yfit.GetParameter(2);
+
+  zmean = mw_vtx_om_zfit.GetParameter(1);
+  zwidth = mw_vtx_om_zfit.GetParameter(2);
+
+  C0->cd();
+  vtxcutbox.SetFillStyle(0);
+  vtxcutbox.SetLineColor(kBlack);
+  vtxcutbox.SetLineWidth(2);
+  vtxcutbox.SetX1(ymean-ywidth/2);
+  vtxcutbox.SetX2(ymean+ywidth/2);
+  vtxcutbox.SetY1(zmean-zwidth/2);
+  vtxcutbox.SetY2(zmean+zwidth/2);
+  vtxcutbox.Draw();
 
 }
 
