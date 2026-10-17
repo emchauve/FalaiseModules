@@ -802,10 +802,10 @@ bool ttd_residual_module::intersect_with_xw0_plane(const geomtools::vector_3d & 
   intersect = (line_point + (xw0_line_factor1/xw0_line_factor2) * line_vector);
 
   if (side > 0) {
-    if ((intersect.x() < 0) || (intersect.x() > 435*CLHEP::mm))
+    if ((intersect.x() < 0) || (intersect.x() > 685*CLHEP::mm))
       return false;
   } else {
-    if ((intersect.x() > 0) || (intersect.x() < -435*CLHEP::mm))
+    if ((intersect.x() > 0) || (intersect.x() < -685*CLHEP::mm))
       return false;
   }
 
@@ -830,10 +830,10 @@ bool ttd_residual_module::intersect_with_xw1_plane(const geomtools::vector_3d & 
   intersect = (line_point + (xw1_line_factor1/xw1_line_factor2) * line_vector);
 
   if (side > 0) {
-    if ((intersect.x() < 0) || (intersect.x() > 435*CLHEP::mm))
+    if ((intersect.x() < 0) || (intersect.x() > 685*CLHEP::mm))
       return false;
   } else {
-    if ((intersect.x() > 0) || (intersect.x() < -435*CLHEP::mm))
+    if ((intersect.x() > 0) || (intersect.x() < -685*CLHEP::mm))
       return false;
   }
 
