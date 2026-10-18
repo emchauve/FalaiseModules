@@ -173,13 +173,13 @@ void draw_vertex()
   mw0_vtx_histo.Reset(); mw1_vtx_histo.Reset();
   xw0_vtx_histo.Reset(); xw1_vtx_histo.Reset();
 
-  const int ttd_entries = ttd_residual->GetEntries();
-  const int ttd_modulo_entries = ttd_entries/100;
+  const long ttd_entries = ttd_residual->GetEntries();
+  const long ttd_modulo_entries = ttd_entries/100;
 
-  for (int entry=0; entry<ttd_entries; entry++) {
+  for (long entry=0; entry<ttd_entries; entry++) {
 
     if ((entry % ttd_modulo_entries) == 0) {
-      printf("\r %3d %% ", entry*100/ttd_entries);
+      printf("\r %3ld %% ", entry*100/ttd_entries);
       fflush(stdout);}
 
     ttd_residual->GetEntry(entry);
@@ -252,13 +252,13 @@ void draw_vertex_bi()
   mw0_vtx_histo.Reset(); mw1_vtx_histo.Reset();
   xw0_vtx_histo.Reset(); xw1_vtx_histo.Reset();
 
-  const int ttd_entries = ttd_residual->GetEntries();
-  const int ttd_modulo_entries = ttd_entries/100;
+  const long ttd_entries = ttd_residual->GetEntries();
+  const long ttd_modulo_entries = ttd_entries/100;
 
-  for (int entry=0; entry<ttd_entries; entry++) {
+  for (long entry=0; entry<ttd_entries; entry++) {
 
     if ((entry % ttd_modulo_entries) == 0) {
-      printf("\r %3d %% ", entry*100/ttd_entries);
+      printf("\r %3ld %% ", entry*100/ttd_entries);
       fflush(stdout);}
  
    ttd_residual->GetEntry(entry);
@@ -441,13 +441,13 @@ void draw_vertex_bb ()
     om_vtx_histos.push_back(om_vtx_histo);
   }
 
-  const int ttd_entries = ttd_residual->GetEntries();
-  const int ttd_modulo_entries = ttd_entries/100;
+  const long ttd_entries = ttd_residual->GetEntries();
+  const long ttd_modulo_entries = ttd_entries/100;
 
-  for (int entry=0; entry<ttd_entries; entry++) {
+  for (long entry=0; entry<ttd_entries; entry++) {
 
     if ((entry % ttd_modulo_entries) == 0) {
-      printf("\r %3d %% ", entry*100/ttd_entries);
+      printf("\r %3ld %% ", entry*100/ttd_entries);
       fflush(stdout);}
 
     ttd_residual->GetEntry(entry);
@@ -783,9 +783,6 @@ void fit_vertex_om (const int om_num)
 
   printf("%s (om_num = %d)\n", om_label.c_str(), om_num);
 
-  const int ttd_entries = ttd_residual->GetEntries();
-  const int ttd_modulo_entries = ttd_entries/100;
-
   mw_vtx_om.Reset();
   mw_vtx_om_y.Reset();
   mw_vtx_om_z.Reset();
@@ -805,12 +802,15 @@ void fit_vertex_om (const int om_num)
   om_charge_spectrum.Reset();
   om_energy_spectrum.Reset();
 
-  for (int entry=0; entry<ttd_entries; entry++) {
+  const long ttd_entries = ttd_residual->GetEntries();
+  const long ttd_modulo_entries = ttd_entries/100;
+
+  for (long entry=0; entry<ttd_entries; entry++) {
 
     ttd_residual->GetEntry(entry);
 
     if ((entry % ttd_modulo_entries) == 0) {
-      printf("\r %3d %% ", entry*100/ttd_entries);
+      printf("\r %3ld %% ", entry*100/ttd_entries);
       fflush(stdout);}
 
     bool has_om = false;
@@ -1040,9 +1040,9 @@ void draw_vertex_source (const float srcy, const float srcz, const float srcy_r=
   theta0.Reset(); theta1.Reset();
   phi0.Reset(); phi1.Reset();
 
-  const int ttd_entries = ttd_residual->GetEntries();
+  const long ttd_entries = ttd_residual->GetEntries();
 
-  for (int entry=0; entry<ttd_entries; entry++) {
+  for (long entry=0; entry<ttd_entries; entry++) {
 
     ttd_residual->GetEntry(entry);
 
