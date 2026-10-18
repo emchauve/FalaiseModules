@@ -1,10 +1,29 @@
+TFile *ttd_residual_file = nullptr;
 TTree *ttd_residual = nullptr;
+ttd_residual_data *ttd_data = nullptr;
+
+void open_file(const char *filename)
+{
+  if (ttd_residual_file != nullptr)
+    delete ttd_residual_file;
+
+  ttd_residual_file = new TFile (filename, "READ");
+  gROOT->cd();
+
+  ttd_residual = (TTree*)(ttd_residual_file->Get("ttd_residual"));
+
+  if (ttd_data == nullptr)
+    ttd_data = new ttd_residual_data;
+
+  ttd_residual->SetBranchAddress("ttd", &ttd_data);
+}
+
 
 TH2F src_vtx_histo ("src_vtx_histo", "SOURCE VERTEX;Y (m); Z(m)", 3000, -3, 3, 2000, -2, 2);
 TH2F mw0_vtx_histo ("mw0_vtx_histo", "MW0 VERTEX;Y (m); Z(m)", 600, -3, 3, 400, -2, 2);
 TH2F mw1_vtx_histo ("mw1_vtx_histo", "MW1 VERTEX;Y (m); Z(m)", 600, -3, 3, 400, -2, 2);
-TH2F xw0_vtx_histo ("xw0_vtx_histo", "XW0 VERTEX;Y (m); X(m)", 200, -1, 1, 400, -2, 2);
-TH2F xw1_vtx_histo ("xw1_vtx_histo", "XW1 VERTEX;Y (m); X(m)", 200, -1, 1, 400, -2, 2);
+TH2F xw0_vtx_histo ("xw0_vtx_histo", "XW0 VERTEX;Y (m); X(m)", 300, -1.5, 1.5, 400, -2, 2);
+TH2F xw1_vtx_histo ("xw1_vtx_histo", "XW1 VERTEX;Y (m); X(m)", 300, -1.5, 1.5, 400, -2, 2);
 
 // ttd_residual->Project("src_vtx_histo", "tracks[].src_vtx[1]/1E3 : tracks[].src_vtx[0]/1E3", "(tracks.flag & 0x10)!=0");
 // ttd_residual->Project("src_vtx_histo2", "tracks[].src_vtx[1]/1E3 : tracks[].src_vtx[0]/1E3", "(tracks.flag & 0x10)!=0 && @tracks.size()==1");
@@ -53,21 +72,106 @@ bool get_mc_source(const float y, const float z, int & source_index, float & sou
   return false;
 }
 
-void draw_vertex ()
+
+bool track_has_intime_mw0_hit(const track_data &track_d, const std::vector<om_data> & calos)
 {
+  for (const om_data & om_d : calos) {
+
+    if (om_d.om_num >= 260)
+      continue;
+
+    const double deltat_trackfirst_om = track_d.first_raw_time - om_d.raw_time;
+
+    if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
+      continue;
+
+    return true;
+  }
+
+  return false;
+}
+
+
+bool track_has_intime_mw1_hit(const track_data &track_d, const std::vector<om_data> & calos)
+{
+  for (const om_data & om_d : calos) {
+
+    if ((om_d.om_num < 260) || (om_d.om_num >= 520))
+      continue;
+
+    const double deltat_trackfirst_om = track_d.first_raw_time - om_d.raw_time;
+
+    if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
+      continue;
+
+    return true;
+  }
+
+  return false;
+}
+
+
+bool track_has_intime_xw0_hit(const track_data &track_d, const std::vector<om_data> & calos)
+{
+  for (const om_data & om_d : calos) {
+
+    if ((om_d.om_num < 520) || (om_d.om_num >= 648))
+      continue;
+
+    const int om_side = (om_d.om_num-520)/64;
+    const int om_wall = (om_d.om_num-520-om_side*64)/32;
+
+    if (om_wall != 0)
+      continue;
+
+    const double deltat_trackfirst_om = track_d.first_raw_time - om_d.raw_time;
+
+    if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
+      continue;
+
+    return true;
+  }
+
+  return false;
+}
+
+bool track_has_intime_xw1_hit(const track_data &track_d, const std::vector<om_data> & calos)
+{
+  for (const om_data & om_d : calos) {
+
+    if ((om_d.om_num < 520) || (om_d.om_num >= 648))
+      continue;
+
+    const int om_side = (om_d.om_num-520)/64;
+    const int om_wall = (om_d.om_num-520-om_side*64)/32;
+
+    if (om_wall != 1)
+      continue;
+
+    const double deltat_trackfirst_om = track_d.first_raw_time - om_d.raw_time;
+
+    if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
+      continue;
+
+    return true;
+  }
+
+  return false;
+}
+
+
+// draw all projected vertex from TTD on source, MW and XW planes
+
+void draw_vertex()
+{
+  if (ttd_residual == nullptr)
+    return;
+
   gStyle->SetOptTitle(1);
 
   src_vtx_histo.Reset();
   mw0_vtx_histo.Reset(); mw1_vtx_histo.Reset();
   xw0_vtx_histo.Reset(); xw1_vtx_histo.Reset();
-
-  for (int om=0; om<520; om++) {
-    TH2F *om_vtx_histo = new TH2F(Form("om_vtx_histo_%03d",om), "OM VERTEX;Y (m); Z(m)", 300, -3, 3, 200, -2, 2);
-    om_vtx_histos.push_back(om_vtx_histo);
-  }
-
-  ttd_residual_data *ttd_data = new ttd_residual_data;
-  ttd_residual->SetBranchAddress("ttd", &ttd_data);
 
   const int ttd_entries = ttd_residual->GetEntries();
   const int ttd_modulo_entries = ttd_entries/100;
@@ -82,25 +186,45 @@ void draw_vertex ()
 
     for (const track_data & track_d : ttd_data->tracks) {
 
-      // if (track_d.cells.size() < 8)
-      // 	continue;
+      // track with at least 4 cells
+      if (track_d.nb_cells < 4) continue;
 
-      if ((track_d.flag & 0x10) == 0)
-	continue;
+      // // skip track of single row width (left/right ambiguity cases)
+      // if (track_d.row_min == track_d.row_max) continue;
 
-      src_vtx_histo.Fill(track_d.src_vtx[0]/1E3, track_d.src_vtx[1]/1E3);
+      // // skip track of single layer width (left/right ambiguity cases)
+      // if (track_d.layer_min == track_d.layer_max) continue;
 
+      // has source vertex
+      if ((track_d.flag & 0x10) != 0) {
+	// require at least one hit in layers 0/1
+	if (track_d.layer_min < 2)
+	  src_vtx_histo.Fill(track_d.src_vtx[0]/1E3, track_d.src_vtx[1]/1E3);
+      }
+
+      // has MW0 vertex
       if ((track_d.flag & 0x21) == 0x20)
-	mw0_vtx_histo.Fill(-track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
+	if (track_d.layer_max > 6)
+	  if (track_has_intime_mw0_hit(track_d, ttd_data->calos))
+	    mw0_vtx_histo.Fill(-track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
     
+      // has MW1 vertex
       if ((track_d.flag & 0x21) == 0x21)
-	mw1_vtx_histo.Fill(track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
+	if (track_d.layer_max > 6)
+	  if (track_has_intime_mw1_hit(track_d, ttd_data->calos))
+	    mw1_vtx_histo.Fill(track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
 
+      // has XW0 vertex
       if ((track_d.flag & 0x40) !=0)
-	xw0_vtx_histo.Fill(track_d.xw0_vtx[0]/1E3, track_d.xw0_vtx[1]/1E3);
+	if (track_d.row_min < 2)
+	  if (track_has_intime_xw0_hit(track_d, ttd_data->calos))
+	    xw0_vtx_histo.Fill(track_d.xw0_vtx[0]/1E3, track_d.xw0_vtx[1]/1E3);
 
+      // has XW1 vertex
       if ((track_d.flag & 0x80) !=0)
-	xw1_vtx_histo.Fill(track_d.xw1_vtx[0]/1E3, track_d.xw1_vtx[1]/1E3);
+	if (track_d.row_max > 111)
+	  if (track_has_intime_xw1_hit(track_d, ttd_data->calos))
+	    xw1_vtx_histo.Fill(track_d.xw1_vtx[0]/1E3, track_d.xw1_vtx[1]/1E3);
     }
 
   }
@@ -115,7 +239,7 @@ void draw_vertex ()
   C_xw->cd(2); xw1_vtx_histo.Draw("colz");
 }
 
-void draw_vertex_bi ()
+void draw_vertex_bi()
 {
   gStyle->SetOptTitle(1);
 
@@ -123,13 +247,10 @@ void draw_vertex_bi ()
     TH2F *om_vtx_histo = new TH2F(Form("om_vtx_histo_%03d",om), "OM VERTEX;Y (m); Z(m)", 300, -3, 3, 200, -2, 2);
     om_vtx_histos.push_back(om_vtx_histo);
   }
-      
+
   src_vtx_histo.Reset();
   mw0_vtx_histo.Reset(); mw1_vtx_histo.Reset();
   xw0_vtx_histo.Reset(); xw1_vtx_histo.Reset();
-
-  ttd_residual_data *ttd_data = new ttd_residual_data;
-  ttd_residual->SetBranchAddress("ttd", &ttd_data);
 
   const int ttd_entries = ttd_residual->GetEntries();
   const int ttd_modulo_entries = ttd_entries/100;
@@ -168,7 +289,7 @@ void draw_vertex_bi ()
 	}
       }
 
-    } // for (track_index
+    } // for (track_index)
 
     for (int source=0; source<42; source++) {
 
@@ -319,9 +440,6 @@ void draw_vertex_bb ()
     TH2F *om_vtx_histo = new TH2F(Form("om_vtx_histo_%03d",om), "OM VERTEX;Y (m); Z(m)", 150, -3, 3, 100, -2, 2);
     om_vtx_histos.push_back(om_vtx_histo);
   }
-
-  ttd_residual_data *ttd_data = new ttd_residual_data;
-  ttd_residual->SetBranchAddress("ttd", &ttd_data);
 
   const int ttd_entries = ttd_residual->GetEntries();
   const int ttd_modulo_entries = ttd_entries/100;
@@ -600,11 +718,19 @@ double gate1d_func (double *x, double *p)
 // TH2F mw_vtx_om ("mw_vtx_om", ";Y (m);Z (m)", 230, -3000, 3000, 156, -2000, 2000); // ~10 bins per OM
 // TH2F mw_vtx_om ("mw_vtx_om", ";Y (m);Z (m)", 469, -3000, 3000, 312, -2000, 2000); // ~20 bins per OM
 // TH2F mw_vtx_om ("mw_vtx_om", ";Y (m);Z (m)", 1172, -3000, 3000, 781, -2000, 2000); // ~50 bins per OM
+
 TH2F mw_vtx_om ("mw_vtx_om", "MW VERTEX;Y (m); Z (m)", 600, -3, 3, 400, -2, 2);
 TH1F mw_vtx_om_y ("mw_vtx_om_y", "MW VERTEX;Y (m);", 600, -3, 3);
 TH1F mw_vtx_om_z ("mw_vtx_om_z", "MW VERTEX;Z (m);", 400, -2, 2);
 TH1D mw_vtxcutz_om_y ("mw_vtxcutz_om_y", "MW VERTEX;Y (m);", 600, -3, 3);
 TH1D mw_vtxcuty_om_z ("mw_vtxcuty_om_z", "MW VERTEX;Z (m);", 400, -2, 2);
+
+TH2F xw_vtx_om ("xw_vtx_om", "XW VERTEX;Y (m); Z (m)", 600, -3, 3, 400, -2, 2);
+TH1F xw_vtx_om_y ("xw_vtx_om_y", "XW VERTEX;Y (m);", 600, -3, 3);
+TH1F xw_vtx_om_z ("xw_vtx_om_z", "XW VERTEX;Z (m);", 400, -2, 2);
+TH1D xw_vtxcutz_om_y ("xw_vtxcutz_om_y", "XW VERTEX;Y (m);", 600, -3, 3);
+TH1D xw_vtxcuty_om_z ("xw_vtxcuty_om_z", "XW VERTEX;Z (m);", 400, -2, 2);
+
 TBox vtxcutbox;
 
 TF1 mw_vtx_om_yfit ("mw_vtx_om_yfit", gate1d_func, -3, 3, 5);
@@ -614,29 +740,51 @@ TF1 mw_vtx_om_zfit ("mw_vtx_om_zfit", gate1d_func, -2, 2, 5);
 // TH1F deltat_trackmean_om_histo ("deltat_trackmean_om", ";#DeltaT (us);", 1500, -5, 10);
 TH2F deltat_trackfirstmean_om_histo ("deltat_trackfirstmean_om", ";#DeltaT FIRST (us); #DeltaT MEAN (us)", 1500, -5, 10, 1500, -5, 10);
 
+TH1F om_charge_spectrum ("om_charge_spectrum", ";Charge (nV.s);", 200, 0, 20);
 TH1F om_energy_spectrum ("om_energy_spectrum", ";Visible Energy (MeV);", 200, 0, 5);
 
-void fit_vertex_om (const char *filename, const int om_num)
+void fit_vertex_om (const int om_num)
 {
   gStyle->SetOptFit(1);
 
-  // hypothesis that om is MW type !!!
-  const int om_side = om_num/260;
-  const int om_column = (om_num-260*om_side)/13;
-  const int om_row = (om_num-260*om_side)%13;
-  printf("M:%d.%d.%d (om_num = %d)\n",om_side,om_column,om_row,om_num);
+  int om_type; // 0=mw, 1=xw, 2=gv
+  int om_side, om_wall, om_column, om_row;
+  std::string om_label;
 
-  TFile file (filename, "READ"); gROOT->cd();
-  ttd_residual = (TTree*)(file.Get("ttd_residual"));
+  int track_flag = 0;
+  int vtx_sgn = 0;
 
-  ttd_residual_data *ttd_data = new ttd_residual_data;
-  ttd_residual->SetBranchAddress("ttd", &ttd_data);
+  if (om_num < 520) {
+    om_type = 0;
+    om_side = om_num/260;
+    om_column = (om_num-260*om_side)/13;
+    om_row = (om_num-260*om_side)%13;
+    om_label = std::string(Form("M:%d.%d.%d",om_side,om_column,om_row));
+    track_flag = 0x20 + om_side;
+    vtx_sgn = (om_side == 0) ? -1 : +1;
+  } else if (om_num < 648) {
+    om_type = 1;
+    om_side = (om_num-520)/64;
+    om_wall = (om_num-520-om_side*64)/32;
+    om_column = (om_num-520-om_side*64-om_wall*32)/16;
+    om_row    = (om_num-520-om_side*64-om_wall*32)%16;
+    om_label = std::string(Form("X:%d.%d.%d.%d",om_side,om_wall,om_column,om_row));
+    track_flag = (om_wall ? 0x80 : 0x40) + om_side;
+    vtx_sgn = (om_wall == 0) ? +1 : -1;
+  } else if (om_num < 712) {
+    om_type = 2;
+    om_side = (om_num-648)/32;
+    om_wall = (om_num-648-om_side*32)/16;
+    om_row  = (om_num-648-om_side*32)%16;
+    om_label = std::string(Form("G:%d.%d.%d",om_side,om_wall,om_row));
+    track_flag = 0;
+    vtx_sgn = 0;
+  }
+
+  printf("%s (om_num = %d)\n", om_label.c_str(), om_num);
 
   const int ttd_entries = ttd_residual->GetEntries();
   const int ttd_modulo_entries = ttd_entries/100;
-
-  const int mw_flag = (om_num < 260) ? 0x20 : 0x21;
-  const int vtx_sgn = (om_num < 260) ? -1 : +1;
 
   mw_vtx_om.Reset();
   mw_vtx_om_y.Reset();
@@ -644,10 +792,17 @@ void fit_vertex_om (const char *filename, const int om_num)
   mw_vtxcutz_om_y.Reset();
   mw_vtxcuty_om_z.Reset();
 
+  xw_vtx_om.Reset();
+  xw_vtx_om_y.Reset();
+  xw_vtx_om_z.Reset();
+  xw_vtxcutz_om_y.Reset();
+  xw_vtxcuty_om_z.Reset();
+
   // deltat_trackfirst_om_histo.Reset();
   // deltat_trackmean_om_histo.Reset();
   deltat_trackfirstmean_om_histo.Reset();
 
+  om_charge_spectrum.Reset();
   om_energy_spectrum.Reset();
 
   for (int entry=0; entry<ttd_entries; entry++) {
@@ -669,7 +824,6 @@ void fit_vertex_om (const char *filename, const int om_num)
       const int om_d_num = om_d.om_num;
 
       if (om_d_num == om_num) {
-	// if (om_d.energy < 1) continue;
 	om_index = om_d_index++;
 	has_om = true;
 	continue;
@@ -694,25 +848,36 @@ void fit_vertex_om (const char *filename, const int om_num)
     if (has_neighbor_om) continue;
 
     const om_data & om_d = ttd_data->calos[om_index];
+    om_charge_spectrum.Fill(om_d.charge);
     om_energy_spectrum.Fill(om_d.energy);
 
-    // reject event with too low energy
-    if (om_d.energy < 0.1)
+    // reject event with too low energy (MW only)
+    if ((om_type == 0) && (om_d.energy < 0.1))
       continue;
 
     for (const track_data & track_d : ttd_data->tracks) {
 
-      if ((track_d.flag & mw_flag) != mw_flag) continue;
+      if ((track_d.flag & track_flag) != track_flag) continue;
 
-      // track with at least 3 cells
-      if (track_d.nb_cells < 3) continue;
+      // track with at least 4 cells
+      if (track_d.nb_cells < 4) continue;
 
-      // require at least one hit in layers 7/8
-      if (track_d.layer_max < 7) continue;
+      // require at least one hit in layers 7/8 (MW only)
+      if ((om_type == 0) && (track_d.layer_max < 7)) continue;
 
-      // skip tracker of single row width
+      // require at least one hit in row 0/1 (XW0 only)
+      if ((om_type == 1) && (om_wall == 0) && (track_d.row_min > 1)) continue;
+
+      // require at least one hit in row 112/113 (XW1 only)
+      if ((om_type == 1) && (om_wall == 1) && (track_d.row_min < 111)) continue;
+
+      // skip track of single row width
       // (avoid left/right ambiguity cases)
       if (track_d.row_min == track_d.row_max) continue;
+
+      // skip track of single layer width
+      // (avoid left/right ambiguity cases)
+      if (track_d.layer_min == track_d.layer_max) continue;
 
       const double deltat_trackfirst_om = track_d.first_raw_time - om_d.raw_time;
       const double deltat_trackmean_om = track_d.mean_raw_time - om_d.raw_time;
@@ -720,12 +885,24 @@ void fit_vertex_om (const char *filename, const int om_num)
       // deltat_trackmean_om_histo.Fill(deltat_trackmean_om*1E6);
       deltat_trackfirstmean_om_histo.Fill(deltat_trackfirst_om*1E6, deltat_trackmean_om*1E6);
 
-      if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackmean_om > 3E-6)) continue;
+      if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6)) continue;
       // if ((deltat_trackmean_om < 0) || (deltat_trackmean_om > 4E-6)) continue;
 
-      mw_vtx_om.Fill(vtx_sgn*track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
-      mw_vtx_om_y.Fill(vtx_sgn*track_d.mw_vtx[0]/1E3);
-      mw_vtx_om_z.Fill(track_d.mw_vtx[1]/1E3);
+      if (om_type == 0) {
+	mw_vtx_om.Fill(vtx_sgn*track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
+	mw_vtx_om_y.Fill(vtx_sgn*track_d.mw_vtx[0]/1E3);
+	mw_vtx_om_z.Fill(track_d.mw_vtx[1]/1E3);
+      } else if (om_type == 1) {
+	if (om_wall == 0) {
+	  xw_vtx_om.Fill(vtx_sgn*track_d.xw0_vtx[0]/1E3, track_d.xw0_vtx[1]/1E3);
+	  xw_vtx_om_y.Fill(vtx_sgn*track_d.xw0_vtx[0]/1E3);
+	  xw_vtx_om_z.Fill(track_d.xw0_vtx[1]/1E3);
+	} else {
+	  xw_vtx_om.Fill(vtx_sgn*track_d.xw1_vtx[0]/1E3, track_d.xw1_vtx[1]/1E3);
+	  xw_vtx_om_y.Fill(vtx_sgn*track_d.xw1_vtx[0]/1E3);
+	  xw_vtx_om_z.Fill(track_d.xw1_vtx[1]/1E3);
+	}
+      }
     }
 
   } // for (entry)
@@ -733,8 +910,17 @@ void fit_vertex_om (const char *filename, const int om_num)
   printf("\n");
 
   TCanvas *C0 = (TCanvas *)(gROOT->FindObject("C_draw_vertex_om_2d"));
-  if (C0 == nullptr)  C0 = new TCanvas ("C_draw_vertex_om_2d", "");
-  C0->cd(); mw_vtx_om.Draw("colz");
+  if (C0 == nullptr) C0 = new TCanvas ("C_draw_vertex_om_2d", "");
+  C0->cd();
+
+  if (om_type == 0) {
+    // C0->SetWindowSize(900, 600);
+    mw_vtx_om.Draw("colz");
+  } else if (om_type == 1) {
+    // C0->SetWindowSize(450, 600);
+    xw_vtx_om.Draw("colz");
+    return;
+  }
 
   TCanvas *C = (TCanvas *)(gROOT->FindObject("C_draw_vertex_om"));
 
@@ -779,7 +965,9 @@ void fit_vertex_om (const char *filename, const int om_num)
   mw_vtx_om_zfit.SetRange(mw_vtx_om_zfit.GetParameter(1)-1.0*0.256, mw_vtx_om_zfit.GetParameter(1)+1.0*0.256);
   mw_vtx_om_z.Fit("mw_vtx_om_zfit", "0R");
 
+
   printf("\n");
+
 
   float zmean = mw_vtx_om_zfit.GetParameter(1);
   float zwidth = mw_vtx_om_zfit.GetParameter(2);
@@ -851,9 +1039,6 @@ void draw_vertex_source (const float srcy, const float srcz, const float srcy_r=
 
   theta0.Reset(); theta1.Reset();
   phi0.Reset(); phi1.Reset();
-
-  ttd_residual_data *ttd_data = new ttd_residual_data;
-  ttd_residual->SetBranchAddress("ttd", &ttd_data);
 
   const int ttd_entries = ttd_residual->GetEntries();
 
