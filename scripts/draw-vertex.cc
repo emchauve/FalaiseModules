@@ -11,9 +11,65 @@
 #include "TStyle.h"
 #include "TSystem.h"
 
+#ifndef __clang__
 #include "../ttd-residual-data.cc"
+#endif
 
 #include <vector>
+
+struct om_info_data {
+  int type;
+  int side;
+  int wall;
+  int column;
+  int row;
+  uint16_t track_flag;
+  std::string label;
+};
+
+om_info_data om_info[712];
+
+void init_om_database()
+{
+  for (int om_num=0; om_num<712; om_num++) {
+
+    if (om_num < 520) {
+      om_info[om_num].type    = 0;
+      om_info[om_num].side    = om_num/260;
+      om_info[om_num].wall    = -1;
+      om_info[om_num].column  = (om_num-260*om_info[om_num].side)/13;
+      om_info[om_num].row     = (om_num-260*om_info[om_num].side)%13;
+      om_info[om_num].label   = Form("M:%d.%d.%d",om_info[om_num].side,om_info[om_num].column,om_info[om_num].row);
+      om_info[om_num].track_flag = 0x20 + om_info[om_num].side;
+      // vtx_sgn = (om_side == 0) ? -1 : +1;
+
+    } else if (om_num < 648) {
+      om_info[om_num].type   = 1;
+      om_info[om_num].side   = (om_num-520)/64;
+      om_info[om_num].wall   = (om_num-520-om_info[om_num].side*64)/32;
+      om_info[om_num].column = (om_num-520-om_info[om_num].side*64-om_info[om_num].wall*32)/16;
+      om_info[om_num].row    = (om_num-520-om_info[om_num].side*64-om_info[om_num].wall*32)%16;
+      om_info[om_num].label  = Form("X:%d.%d.%d.%d",om_info[om_num].side,om_info[om_num].wall,om_info[om_num].column,om_info[om_num].row);
+      om_info[om_num].track_flag = (om_info[om_num].wall ? 0x80 : 0x40) + om_info[om_num].side;
+      // vtx_sgn = (om_wall == 0) ? +1 : -1;
+
+    } else { // if (om_num < 712) {
+      om_info[om_num].type = 2;
+      om_info[om_num].side = (om_num-648)/32;
+      om_info[om_num].wall = (om_num-648-om_info[om_num].side*32)/16;
+      om_info[om_num].row  = (om_num-648-om_info[om_num].side*32)%16;
+      om_info[om_num].column = -1;
+      om_info[om_num].label = Form("G:%d.%d.%d",om_info[om_num].side,om_info[om_num].wall,om_info[om_num].row);
+      om_info[om_num].track_flag = 0;
+      // vtx_sgn = 0;
+    }
+
+    // printf("[%d] %s\n", om_num, om_info[om_num].label.c_str());
+
+  } // for (om_num);
+
+}
+
 
 TFile *ttd_residual_file = nullptr;
 TTree *ttd_residual = nullptr;
@@ -21,6 +77,8 @@ ttd_residual_data *ttd_data = nullptr;
 
 void open_file(const char *filename)
 {
+  init_om_database();
+
   if (ttd_residual_file != nullptr)
     delete ttd_residual_file;
 
@@ -53,6 +111,7 @@ const float mc_source_z[7] = {-1.275, -0.847, -0.425, +0.000, +0.429, +0.847, +1
 const float mc_source_sigmay = 0.100;
 const float mc_source_sigmaz = 0.100;
 
+std::vector<bool> om_has_neighbor;
 std::vector<TH2F*> om_vtx_histos;
 
 float interpolatex(TH1D *histo, int bin_min, int bin_max, float threshold)
@@ -92,7 +151,11 @@ bool get_mc_source(const float y, const float z, int & source_index, float & sou
 
 bool track_has_intime_mw0_hit(const track_data &track_d, const std::vector<om_data> & calos)
 {
-  for (const om_data & om_d : calos) {
+  bool has_intime_hit = false;
+
+  for (size_t c=0; c<calos.size(); c++) {
+
+    const om_data & om_d =  calos[c];
 
     if (om_d.om_num >= 260)
       continue;
@@ -102,16 +165,23 @@ bool track_has_intime_mw0_hit(const track_data &track_d, const std::vector<om_da
     if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
       continue;
 
-    return true;
+    if (!om_has_neighbor[c])
+      om_vtx_histos[om_d.om_num]->Fill(-track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
+
+    has_intime_hit = true;
   }
 
-  return false;
+  return has_intime_hit;
 }
 
 
 bool track_has_intime_mw1_hit(const track_data &track_d, const std::vector<om_data> & calos)
 {
-  for (const om_data & om_d : calos) {
+  bool has_intime_hit = false;
+
+  for (size_t c=0; c<calos.size(); c++) {
+
+    const om_data & om_d =  calos[c];
 
     if ((om_d.om_num < 260) || (om_d.om_num >= 520))
       continue;
@@ -121,16 +191,23 @@ bool track_has_intime_mw1_hit(const track_data &track_d, const std::vector<om_da
     if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
       continue;
 
-    return true;
+    if (!om_has_neighbor[c])
+      om_vtx_histos[om_d.om_num]->Fill(-track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
+
+    has_intime_hit = true;
   }
 
-  return false;
+  return has_intime_hit;
 }
 
 
 bool track_has_intime_xw0_hit(const track_data &track_d, const std::vector<om_data> & calos)
 {
-  for (const om_data & om_d : calos) {
+  bool has_intime_hit = false;
+
+  for (size_t c=0; c<calos.size(); c++) {
+
+    const om_data & om_d =  calos[c];
 
     if ((om_d.om_num < 520) || (om_d.om_num >= 648))
       continue;
@@ -146,15 +223,22 @@ bool track_has_intime_xw0_hit(const track_data &track_d, const std::vector<om_da
     if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
       continue;
 
-    return true;
+    if (!om_has_neighbor[c])
+      om_vtx_histos[om_d.om_num]->Fill(-track_d.xw0_vtx[0]/1E3, track_d.xw0_vtx[1]/1E3);
+
+    has_intime_hit = true;
   }
 
-  return false;
+  return has_intime_hit;
 }
 
 bool track_has_intime_xw1_hit(const track_data &track_d, const std::vector<om_data> & calos)
 {
-  for (const om_data & om_d : calos) {
+  bool has_intime_hit = false;
+
+  for (size_t c=0; c<calos.size(); c++) {
+
+    const om_data & om_d =  calos[c];
 
     if ((om_d.om_num < 520) || (om_d.om_num >= 648))
       continue;
@@ -170,12 +254,17 @@ bool track_has_intime_xw1_hit(const track_data &track_d, const std::vector<om_da
     if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
       continue;
 
-    return true;
+    if (!om_has_neighbor[c])
+      om_vtx_histos[om_d.om_num]->Fill(-track_d.xw1_vtx[0]/1E3, track_d.xw1_vtx[1]/1E3);
+
+    has_intime_hit = true;
   }
 
-  return false;
+  return has_intime_hit;
 }
 
+
+TH1F deltat_neighbor_om ("deltat_neighbor_om", ";#DeltaT (ns);", 1000, 0, 200);
 
 // draw all projected vertex from TTD on source, MW and XW planes
 
@@ -189,6 +278,28 @@ void draw_vertex(bool save_plot=false)
   src_vtx_histo.Reset();
   mw0_vtx_histo.Reset(); mw1_vtx_histo.Reset();
   xw0_vtx_histo.Reset(); xw1_vtx_histo.Reset();
+
+  om_has_neighbor.reserve(512);
+
+
+  if (om_vtx_histos.size() == 0) {
+
+    om_vtx_histos.reserve(712);
+
+    for (int om=0; om<520; om++) {
+      TH2F *om_vtx_histo = new TH2F(Form("om_vtx_histo_%03d",om), "", 600, -3, 3, 400, -2, 2);
+      om_vtx_histo->SetTitle(Form("OM %d VERTEX;Y (m); Z(m)", om));
+      om_vtx_histos.push_back(om_vtx_histo);
+    }
+
+    for (int om=520; om<648; om++) {
+      TH2F *om_vtx_histo = new TH2F(Form("om_vtx_histo_%03d",om), "", 300, -1.5, 1.5, 400, -2, 2);
+      om_vtx_histo->SetTitle(Form("OM %d VERTEX;Y (m); Z(m)", om));
+      om_vtx_histos.push_back(om_vtx_histo);
+    }
+
+    // GV histos
+  }
 
   const long ttd_entries = ttd_residual->GetEntries();
   const long ttd_modulo_entries = ttd_entries/100;
@@ -211,34 +322,46 @@ void draw_vertex(bool save_plot=false)
 
     ttd_residual->GetEntry(entry);
 
-    // bool has_neighbor_om[712];
+    om_has_neighbor.clear();
 
-    // for (int om_i=0; om_i<ttd_data->calos.size(); om_i++) {
+    for (size_t om_i=0; om_i<ttd_data->calos.size(); om_i++)
+      om_has_neighbor.push_back(false);
 
-    //   const om_data & om_i_data : ttd_data->calos[om_i];
+    for (size_t om_i=0; om_i<ttd_data->calos.size(); om_i++) {
 
-    //   const int om_i_num = om_i_data.om_num;
-    //   const int om_i_side = om_i_num/260;
-    //   const int om_i_column = (om_i_num-260*om_i_side)/13;
-    //   const int om_i_row = (om_i_num-260*om_i_side)%13;
+      const om_data & om_i_data = ttd_data->calos[om_i];
+      om_info_data & om_i_info = om_info[om_i_data.om_num];
 
-    //   for (int om_j=om_i+1; om_j<ttd_data->calos.size(); om_j++) {
+      for (size_t om_j=om_i+1; om_j<ttd_data->calos.size(); om_j++) {
 
-    // 	// if (om_i == om_j) continue;
-    // 	// if (om_i_type != om_j_type) continue;
+	const om_data & om_j_data = ttd_data->calos[om_j];
+	om_info_data & om_j_info = om_info[om_j_data.om_num];
 
-    // 	// if ((om_i_type == 0) && (om_i_side != om_j_side)) continue;
-    // 	// if (om_i_side != om_j_side) continue;
-    // 	// if (om_i_wall != om_j_wall) continue;
+	if (om_i == om_j) continue;
+	if (om_i_info.type != om_j_info.type) continue;
+	if (om_i_info.side != om_j_info.side) continue;
+	if (om_i_info.wall != om_j_info.wall) continue;
 
-    // 	// if ((om_d_side == om_side) &&
-    // 	// 	  (std::abs(om_d_column-om_column) <= 1) &&
-    // 	// 	  (std::abs(om_d_row-om_row) <= 1))
-    // 	// has_neighbor_om = true;
+	const int delta_column = std::abs(om_j_info.column-om_i_info.column);
+	if (delta_column > 1) continue;
 
-    //   } // for (om_j)
+	const int delta_row = std::abs(om_j_info.row-om_i_info.row);
+	if (delta_row > 1) continue;
 
-    // } // for (om_i)
+	const double deltat_om = std::fabs(om_j_data.raw_time - om_i_data.raw_time);
+	deltat_neighbor_om.Fill(deltat_om*1E9);
+	if (deltat_om > 25E-9) continue;
+
+	// if (delta_column == delta_row) continue; // neighbor at corner !
+
+	// printf("[%ld] %s <=> %s\n", entry, om_i_info.label.c_str(), om_j_info.label.c_str());
+
+	om_has_neighbor[om_i] = om_has_neighbor[om_j] = true;
+
+      } // for (om_j)
+
+    } // for (om_i)
+
 
     for (const track_data & track_d : ttd_data->tracks) {
 
@@ -263,7 +386,7 @@ void draw_vertex(bool save_plot=false)
 	if (track_d.layer_max > 6)
 	  if (track_has_intime_mw0_hit(track_d, ttd_data->calos))
 	    mw0_vtx_histo.Fill(-track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
-    
+
       // has MW1 vertex
       if ((track_d.flag & 0x21) == 0x21)
 	if (track_d.layer_max > 6)
@@ -286,6 +409,17 @@ void draw_vertex(bool save_plot=false)
   }
 
   printf("\n");
+
+  {
+    TFile output_file ("om-vertex.root", "RECREATE");
+
+      for (int om=0; om<712; om++)
+	om_vtx_histos[om]->Write("", TObject::kOverwrite);
+
+    output_file.Close();
+  }
+
+  return;
 
   const int cfactor = (save_plot ? 2 : 1);
 
@@ -311,6 +445,13 @@ void draw_vertex(bool save_plot=false)
     mw1_vtx_canvas->SaveAs("mw1_vtx_canvas.png");
     xw_vtx_canvas->SaveAs("xw_vtx_canvas.png");
   }
+
+  printf("statistics: \n");
+  printf("src_vtx = %.0f\n", src_vtx_histo.GetEntries());
+  printf("mw0_vtx = %.0f\n", mw0_vtx_histo.GetEntries());
+  printf("mw1_vtx = %.0f\n", mw1_vtx_histo.GetEntries());
+  printf("xw0_vtx = %.0f\n", xw0_vtx_histo.GetEntries());
+  printf("xw1_vtx = %.0f\n", xw1_vtx_histo.GetEntries());
 
 }
 
@@ -1159,7 +1300,7 @@ void draw_vertex_source (const float srcy, const float srcz, const float srcy_r=
 }
 
   
-int main()
+int main(int argc, char *argv[])
 {
   gROOT->SetStyle("Plain");
   gStyle->SetPalette(55);
@@ -1168,8 +1309,11 @@ int main()
   gStyle->SetTitleBorderSize(0);
   gStyle->SetNdivisions(506, "xyz");
 
+  if (argc < 2) return 0;
+
   gSystem->Load("ttd-residual-data_cc.so");
-  open_file("root/bb/ttd-residual-bb-phase3.root");
+  // open_file("root/bb/ttd-residual-bb-phase3.root");
+  open_file(argv[1]);
   draw_vertex(true);
   return 0;
 }
