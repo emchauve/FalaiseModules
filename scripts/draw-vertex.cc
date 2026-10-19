@@ -1,3 +1,20 @@
+#include "TFile.h"
+#include "TTree.h"
+#include "TCanvas.h"
+#include "TH2F.h"
+#include "TH1F.h"
+#include "TH2D.h"
+#include "TF1.h"
+#include "TBox.h"
+#include "TMarker.h"
+#include "TROOT.h"
+#include "TStyle.h"
+#include "TSystem.h"
+
+#include "../ttd-residual-data.cc"
+
+#include <vector>
+
 TFile *ttd_residual_file = nullptr;
 TTree *ttd_residual = nullptr;
 ttd_residual_data *ttd_data = nullptr;
@@ -162,7 +179,7 @@ bool track_has_intime_xw1_hit(const track_data &track_d, const std::vector<om_da
 
 // draw all projected vertex from TTD on source, MW and XW planes
 
-void draw_vertex()
+void draw_vertex(bool save_plot=false)
 {
   if (ttd_residual == nullptr)
     return;
@@ -176,6 +193,16 @@ void draw_vertex()
   const long ttd_entries = ttd_residual->GetEntries();
   const long ttd_modulo_entries = ttd_entries/100;
 
+  ttd_residual->SetBranchStatus("*", 1);
+  ttd_residual->SetBranchStatus("tracks.first[3]", 0);
+  ttd_residual->SetBranchStatus("tracks.last[3]", 0);
+  ttd_residual->SetBranchStatus("tracks.length", 0);
+  ttd_residual->SetBranchStatus("tracks.theta", 0);
+  ttd_residual->SetBranchStatus("tracks.phi", 0);
+  ttd_residual->SetBranchStatus("tracks.chi2ndf", 0);
+  ttd_residual->SetBranchStatus("tracks.cells", 0);
+  ttd_residual->SetBranchStatus("tracks.missed_cells", 0);
+
   for (long entry=0; entry<ttd_entries; entry++) {
 
     if ((entry % ttd_modulo_entries) == 0) {
@@ -184,16 +211,45 @@ void draw_vertex()
 
     ttd_residual->GetEntry(entry);
 
+    // bool has_neighbor_om[712];
+
+    // for (int om_i=0; om_i<ttd_data->calos.size(); om_i++) {
+
+    //   const om_data & om_i_data : ttd_data->calos[om_i];
+
+    //   const int om_i_num = om_i_data.om_num;
+    //   const int om_i_side = om_i_num/260;
+    //   const int om_i_column = (om_i_num-260*om_i_side)/13;
+    //   const int om_i_row = (om_i_num-260*om_i_side)%13;
+
+    //   for (int om_j=om_i+1; om_j<ttd_data->calos.size(); om_j++) {
+
+    // 	// if (om_i == om_j) continue;
+    // 	// if (om_i_type != om_j_type) continue;
+
+    // 	// if ((om_i_type == 0) && (om_i_side != om_j_side)) continue;
+    // 	// if (om_i_side != om_j_side) continue;
+    // 	// if (om_i_wall != om_j_wall) continue;
+
+    // 	// if ((om_d_side == om_side) &&
+    // 	// 	  (std::abs(om_d_column-om_column) <= 1) &&
+    // 	// 	  (std::abs(om_d_row-om_row) <= 1))
+    // 	// has_neighbor_om = true;
+
+    //   } // for (om_j)
+
+    // } // for (om_i)
+
     for (const track_data & track_d : ttd_data->tracks) {
 
       // track with at least 4 cells
       if (track_d.nb_cells < 4) continue;
 
-      // // skip track of single row width (left/right ambiguity cases)
-      // if (track_d.row_min == track_d.row_max) continue;
+      // skip track of single row width (left/right ambiguity cases)
+      if (track_d.row_min == track_d.row_max) continue;
 
-      // // skip track of single layer width (left/right ambiguity cases)
-      // if (track_d.layer_min == track_d.layer_max) continue;
+      // skip track of single layer width (left/right ambiguity cases)
+      if (track_d.layer_min == track_d.layer_max) continue;
 
       // has source vertex
       if ((track_d.flag & 0x10) != 0) {
@@ -231,12 +287,31 @@ void draw_vertex()
 
   printf("\n");
 
-  new TCanvas; src_vtx_histo.Draw("colz");
-  new TCanvas; mw0_vtx_histo.Draw("colz");
-  new TCanvas; mw1_vtx_histo.Draw("colz");
-  TCanvas *C_xw = new TCanvas; C_xw->Divide(2,1);
-  C_xw->cd(1); xw0_vtx_histo.Draw("colz");
-  C_xw->cd(2); xw1_vtx_histo.Draw("colz");
+  const int cfactor = (save_plot ? 2 : 1);
+
+  TCanvas *src_vtx_canvas = new TCanvas("src_vtx_canvas", "", cfactor*700, cfactor*500);
+  src_vtx_histo.Draw("colz");
+
+  TCanvas *mw0_vtx_canvas = new TCanvas("mw0_vtx_canvas", "", cfactor*700, cfactor*500);
+  mw0_vtx_histo.Draw("colz");
+
+  TCanvas *mw1_vtx_canvas = new TCanvas("mw1_vtx_canvas", "", cfactor*700, cfactor*500);
+  mw1_vtx_histo.Draw("colz");
+
+  TCanvas *xw_vtx_canvas = new TCanvas("xw_vtx_canvas", "", cfactor*700, cfactor*500);
+  xw_vtx_canvas->Divide(2,1);
+  xw_vtx_canvas->cd(1);
+  xw0_vtx_histo.Draw("colz");
+  xw_vtx_canvas->cd(2);
+  xw1_vtx_histo.Draw("colz");
+
+  if (save_plot) {
+    src_vtx_canvas->SaveAs("src_vtx_canvas.png");
+    mw0_vtx_canvas->SaveAs("mw0_vtx_canvas.png");
+    mw1_vtx_canvas->SaveAs("mw1_vtx_canvas.png");
+    xw_vtx_canvas->SaveAs("xw_vtx_canvas.png");
+  }
+
 }
 
 void draw_vertex_bi()
@@ -262,8 +337,6 @@ void draw_vertex_bi()
       fflush(stdout);}
  
    ttd_residual->GetEntry(entry);
-
-    size_t track_index = 0;
 
     float source_distance_min[42];
     int track_index_min[42];
@@ -757,6 +830,7 @@ void fit_vertex_om (const int om_num)
   if (om_num < 520) {
     om_type = 0;
     om_side = om_num/260;
+    om_wall = -1;
     om_column = (om_num-260*om_side)/13;
     om_row = (om_num-260*om_side)%13;
     om_label = std::string(Form("M:%d.%d.%d",om_side,om_column,om_row));
@@ -771,11 +845,12 @@ void fit_vertex_om (const int om_num)
     om_label = std::string(Form("X:%d.%d.%d.%d",om_side,om_wall,om_column,om_row));
     track_flag = (om_wall ? 0x80 : 0x40) + om_side;
     vtx_sgn = (om_wall == 0) ? +1 : -1;
-  } else if (om_num < 712) {
+  } else { // if (om_num < 712) {
     om_type = 2;
     om_side = (om_num-648)/32;
     om_wall = (om_num-648-om_side*32)/16;
     om_row  = (om_num-648-om_side*32)%16;
+    om_column = -1;
     om_label = std::string(Form("G:%d.%d.%d",om_side,om_wall,om_row));
     track_flag = 0;
     vtx_sgn = 0;
@@ -832,6 +907,8 @@ void fit_vertex_om (const int om_num)
       const int om_d_side = om_d_num/260;
       const int om_d_column = (om_d_num-260*om_d_side)/13;
       const int om_d_row = (om_d_num-260*om_d_side)%13;
+
+      // et le timing ?!?!?!??!
 
       if ((om_d_side == om_side) &&
 	  (std::abs(om_d_column-om_column) <= 1) &&
@@ -1082,3 +1159,17 @@ void draw_vertex_source (const float srcy, const float srcz, const float srcy_r=
 }
 
   
+int main()
+{
+  gROOT->SetStyle("Plain");
+  gStyle->SetPalette(55);
+  gStyle->SetOptTitle(0);
+  gStyle->SetOptStat(0);
+  gStyle->SetTitleBorderSize(0);
+  gStyle->SetNdivisions(506, "xyz");
+
+  gSystem->Load("ttd-residual-data_cc.so");
+  open_file("root/bb/ttd-residual-bb-phase3.root");
+  draw_vertex(true);
+  return 0;
+}
