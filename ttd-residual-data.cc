@@ -54,20 +54,25 @@ struct track_data
   // uint8_t ttd_id;
 
   uint16_t flag;
-  // 0x01 = side
-  // 0x02 = delayed
-  // 0x04
-  // 0x08
-  // 0x10 = has source vertex
-  // 0x20 = has MW vertex
-  // 0x40 = has XW0 vertex
-  // 0x80 = has XW1 vertex
+  // 0x001 = side
+  // 0x002 = delayed
+  // 0x004
+  // 0x008
+  // 0x010 = has source vertex
+  // 0x020 = has MW vertex
+  // 0x040 = has XW0 vertex
+  // 0x080 = has XW1 vertex
+  // 0x100 = has GV0 vertex
+  // 0x200 = has GV1 vertex
   uint16_t nb_cells;
+  // uint16_t nb_cells_withz;
 
   uint8_t row_min;
   uint8_t row_max;
   uint8_t layer_min;
   uint8_t layer_max;
+  float z_min;
+  float z_max;
 
   float first[3];
   float last[3];
@@ -76,6 +81,8 @@ struct track_data
   float mw_vtx[2];
   float xw0_vtx[2];
   float xw1_vtx[2];
+  float gv0_vtx[2];
+  float gv1_vtx[2];
 
   float length;
   float theta;

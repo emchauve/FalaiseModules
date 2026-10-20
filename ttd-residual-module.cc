@@ -64,6 +64,8 @@ private:
   bool intersect_with_mw_plane(const geomtools::vector_3d &, const geomtools::vector_3d &, const int &, geomtools::vector_3d &);
   bool intersect_with_xw0_plane(const geomtools::vector_3d &, const geomtools::vector_3d &, const int &, geomtools::vector_3d &);
   bool intersect_with_xw1_plane(const geomtools::vector_3d &, const geomtools::vector_3d &, const int &, geomtools::vector_3d &);
+  bool intersect_with_gv0_plane(const geomtools::vector_3d &, const geomtools::vector_3d &, const int &, geomtools::vector_3d &);
+  bool intersect_with_gv1_plane(const geomtools::vector_3d &, const geomtools::vector_3d &, const int &, geomtools::vector_3d &);
 
 private:
   snemo::service_handle<snemo::geometry_svc> _geo_manager_ {};
@@ -252,11 +254,16 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
     _track_data_.flag = 0;
     _track_data_.nb_cells = ttd_trajectory->get_cluster().hits().size();
+    // _track_data_.nb_cells_withz = 0;
 
     _track_data_.row_min = std::numeric_limits<uint8_t>::max();
     _track_data_.row_max = std::numeric_limits<uint8_t>::min();
+
     _track_data_.layer_min = std::numeric_limits<uint8_t>::max();
     _track_data_.layer_max = std::numeric_limits<uint8_t>::min();
+
+    _track_data_.z_min = 10*1750*CLHEP::mm; // std::numeric_limits<float>::max();
+    _track_data_.z_max = 10*-1750*CLHEP::mm; // std::numeric_limits<float>::min();
 
     for (int xyz=0; xyz<3; xyz++) {
       _track_data_.first[xyz] = line_first_point[xyz];
@@ -291,15 +298,15 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
       trajectory_side = tracker_hit->get_geom_id().get(1);
 
-      if (tracker_hit->get_geom_id().get(2) < _track_data_.layer_min)
-	_track_data_.layer_min = tracker_hit->get_geom_id().get(2);
-      if (tracker_hit->get_geom_id().get(2) > _track_data_.layer_max)
-	_track_data_.layer_max = tracker_hit->get_geom_id().get(2);
-
       if (tracker_hit->get_geom_id().get(3) < _track_data_.row_min)
 	_track_data_.row_min = tracker_hit->get_geom_id().get(3);
       if (tracker_hit->get_geom_id().get(3) > _track_data_.row_max)
 	_track_data_.row_max = tracker_hit->get_geom_id().get(3);
+
+      if (tracker_hit->get_geom_id().get(2) < _track_data_.layer_min)
+	_track_data_.layer_min = tracker_hit->get_geom_id().get(2);
+      if (tracker_hit->get_geom_id().get(2) > _track_data_.layer_max)
+	_track_data_.layer_max = tracker_hit->get_geom_id().get(2);
 
       const uint16_t gg_num = snemo::datamodel::gg_num(tracker_hit->get_geom_id());
       cluster_has_cell[gg_num] = true;
@@ -321,8 +328,20 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
       const double height_from_fit = nearest_line_point.z(); // line2d_xz_intercept + line2d_xz_slope*tracker_hit_x; // FALSE!!
       // const double height_residual = height_from_fit - height_from_cd;
 
-      const datatools::properties & tracker_hit_properties = tracker_hit->get_auxiliaries();
+      if (datatools::is_valid(height_from_cd)) {
 
+	// if ((_track_data_.z_min < -1380.5) || (_track_data_.z_max > 1380.5))
+
+	if ((height_from_cd < _track_data_.z_min) && (height_from_cd > -1380.5*CLHEP::mm))
+	  _track_data_.z_min = height_from_cd;
+
+	if ((height_from_cd > _track_data_.z_max) && (height_from_cd < +1380.5*CLHEP::mm))
+	  _track_data_.z_max = height_from_cd;
+	// _track_data_.nb_cells_withz++;
+
+      }
+
+      const datatools::properties & tracker_hit_properties = tracker_hit->get_auxiliaries();
 
       if (_store_cell_data_) {
 
@@ -591,12 +610,34 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     // intercept with x-wall 0 plane ?
     geomtools::vector_3d xw1_vertex;
     if (this->intersect_with_xw1_plane(line_first_point, line_vector, trajectory_side, xw1_vertex)) {
-      _track_data_.flag |= 0x80;
+      _track_data_.flag |= 0x100;
       _track_data_.xw1_vtx[0] = xw1_vertex.x();
       _track_data_.xw1_vtx[1] = xw1_vertex.z();
     } else {
       _track_data_.xw1_vtx[0] = xw1_vertex.x();
       _track_data_.xw1_vtx[1] = xw1_vertex.z();
+    }
+
+    // intercept with g-veto 0 plane ?
+    geomtools::vector_3d gv0_vertex;
+    if (this->intersect_with_gv0_plane(line_first_point, line_vector, trajectory_side, gv0_vertex)) {
+      _track_data_.flag |= 0x200;
+      _track_data_.gv0_vtx[0] = gv0_vertex.x();
+      _track_data_.gv0_vtx[1] = gv0_vertex.y();
+    } else {
+      _track_data_.gv0_vtx[0] = gv0_vertex.x();
+      _track_data_.gv0_vtx[1] = gv0_vertex.y();
+    }
+
+    // intercept with g-veto 1 plane ?
+    geomtools::vector_3d gv1_vertex;
+    if (this->intersect_with_gv1_plane(line_first_point, line_vector, trajectory_side, gv1_vertex)) {
+      _track_data_.flag |= 0x80;
+      _track_data_.gv1_vtx[0] = gv1_vertex.x();
+      _track_data_.gv1_vtx[1] = gv1_vertex.y();
+    } else {
+      _track_data_.gv1_vtx[0] = gv1_vertex.x();
+      _track_data_.gv1_vtx[1] = gv1_vertex.y();
     }
 
     // Now loop over all unclustered cells to check possible missed cells
@@ -631,6 +672,12 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     //   const datatools::properties & tracker_hit_properties = tracker_hit->get_auxiliaries();
 
     // } // for (unclustered tracker_hit)
+
+    if ((_track_data_.z_min < -1380.5) || (_track_data_.z_max > 1380.5))
+    printf("[%d_%d]-%d %f => %f\n",
+	   _ttd_data_.run, _ttd_data_.event,
+	   ttd_trajectory->get_cluster().get_cluster_id(),
+	   _track_data_.z_min, _track_data_.z_max);
 
   } // for (ttd_trajectory)
 
@@ -786,7 +833,6 @@ bool ttd_residual_module::intersect_with_mw_plane(const geomtools::vector_3d & l
   return true;
 }
 
-
 bool ttd_residual_module::intersect_with_xw0_plane(const geomtools::vector_3d & line_point, const geomtools::vector_3d & line_vector, const int & side, geomtools::vector_3d & intersect)
 {
   const geomtools::vector_3d xw0_point (0, -2505.5*CLHEP::mm, 0);
@@ -838,6 +884,62 @@ bool ttd_residual_module::intersect_with_xw1_plane(const geomtools::vector_3d & 
   }
 
   if (std::fabs(intersect.z()) > 1750*CLHEP::mm)
+    return false;
+
+  return true;
+}
+
+bool ttd_residual_module::intersect_with_gv0_plane(const geomtools::vector_3d & line_point, const geomtools::vector_3d & line_vector, const int & side, geomtools::vector_3d & intersect)
+{
+  const geomtools::vector_3d gv0_point (0, 0, -1500*CLHEP::mm);
+  const geomtools::vector_3d gv0_vector (0, 0, 1);
+
+  const geomtools::vector_3d gv0_line_vector (line_point - gv0_point);
+  const double gv0_line_factor1 = -gv0_vector.dot(gv0_line_vector);
+  const double gv0_line_factor2 = gv0_vector.dot(line_vector);
+
+  if (gv0_line_factor2 == 0)
+    return false;
+
+  intersect = (line_point + (gv0_line_factor1/gv0_line_factor2) * line_vector);
+
+  if (side > 0) {
+    if ((intersect.x() < 0) || (intersect.x() > 685*CLHEP::mm))
+      return false;
+  } else {
+    if ((intersect.x() > 0) || (intersect.x() < -685*CLHEP::mm))
+      return false;
+  }
+
+  if (std::fabs(intersect.y()) > 2750*CLHEP::mm)
+    return false;
+
+  return true;
+}
+
+bool ttd_residual_module::intersect_with_gv1_plane(const geomtools::vector_3d & line_point, const geomtools::vector_3d & line_vector, const int & side, geomtools::vector_3d & intersect)
+{
+  const geomtools::vector_3d gv1_point (0, 0, 1500*CLHEP::mm);
+  const geomtools::vector_3d gv1_vector (0, 0, 1);
+
+  const geomtools::vector_3d gv1_line_vector (line_point - gv1_point);
+  const double gv1_line_factor1 = -gv1_vector.dot(gv1_line_vector);
+  const double gv1_line_factor2 = gv1_vector.dot(line_vector);
+
+  if (gv1_line_factor2 == 0)
+    return false;
+
+  intersect = (line_point + (gv1_line_factor1/gv1_line_factor2) * line_vector);
+
+  if (side > 0) {
+    if ((intersect.x() < 0) || (intersect.x() > 685*CLHEP::mm))
+      return false;
+  } else {
+    if ((intersect.x() > 0) || (intersect.x() < -685*CLHEP::mm))
+      return false;
+  }
+
+  if (std::fabs(intersect.y()) > 2750*CLHEP::mm)
     return false;
 
   return true;

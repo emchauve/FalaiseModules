@@ -95,10 +95,15 @@ void open_file(const char *filename)
 
 
 TH2F src_vtx_histo ("src_vtx_histo", "SOURCE VERTEX;Y (m); Z(m)", 3000, -3, 3, 2000, -2, 2);
+
 TH2F mw0_vtx_histo ("mw0_vtx_histo", "MW0 VERTEX;Y (m); Z(m)", 600, -3, 3, 400, -2, 2);
 TH2F mw1_vtx_histo ("mw1_vtx_histo", "MW1 VERTEX;Y (m); Z(m)", 600, -3, 3, 400, -2, 2);
-TH2F xw0_vtx_histo ("xw0_vtx_histo", "XW0 VERTEX;Y (m); X(m)", 300, -1.5, 1.5, 400, -2, 2);
-TH2F xw1_vtx_histo ("xw1_vtx_histo", "XW1 VERTEX;Y (m); X(m)", 300, -1.5, 1.5, 400, -2, 2);
+
+TH2F xw0_vtx_histo ("xw0_vtx_histo", "XW0 VERTEX;X (m); Y(m)", 300, -1.5, 1.5, 400, -2, 2);
+TH2F xw1_vtx_histo ("xw1_vtx_histo", "XW1 VERTEX;X (m); Y(m)", 300, -1.5, 1.5, 400, -2, 2);
+
+TH2F gv0_vtx_histo ("gv0_vtx_histo", "GV0 VERTEX;Y (m); X(m)", 600, -3, 3, 300, -1.5, 1.5);
+TH2F gv1_vtx_histo ("gv1_vtx_histo", "GV1 VERTEX;Y (m); X(m)", 600, -3, 3, 300, -1.5, 1.5);
 
 // ttd_residual->Project("src_vtx_histo", "tracks[].src_vtx[1]/1E3 : tracks[].src_vtx[0]/1E3", "(tracks.flag & 0x10)!=0");
 // ttd_residual->Project("src_vtx_histo2", "tracks[].src_vtx[1]/1E3 : tracks[].src_vtx[0]/1E3", "(tracks.flag & 0x10)!=0 && @tracks.size()==1");
@@ -404,22 +409,35 @@ void draw_vertex(bool save_plot=false)
 	if (track_d.row_max > 111)
 	  if (track_has_intime_xw1_hit(track_d, ttd_data->calos))
 	    xw1_vtx_histo.Fill(track_d.xw1_vtx[0]/1E3, track_d.xw1_vtx[1]/1E3);
+
+      // has GV0 vertex
+      if ((track_d.flag & 0x100) !=0)
+	if (track_d.z_min < -1350)
+	//   if (track_has_intime_gv0_hit(track_d, ttd_data->calos))
+	    gv0_vtx_histo.Fill(track_d.gv0_vtx[1]/1E3, track_d.gv0_vtx[0]/1E3);
+
+      // has GV1 vertex
+      if ((track_d.flag & 0x200) !=0)
+	if (track_d.z_max > 1350)
+	//   if (track_has_intime_gv1_hit(track_d, ttd_data->calos))
+	    gv1_vtx_histo.Fill(track_d.gv1_vtx[1]/1E3, track_d.gv1_vtx[0]/1E3);
+
     }
 
   }
 
   printf("\n");
 
-  {
-    TFile output_file ("om-vertex.root", "RECREATE");
+  // {
+  //   TFile output_file ("om-vertex.root", "RECREATE");
 
-      for (int om=0; om<712; om++)
-	om_vtx_histos[om]->Write("", TObject::kOverwrite);
+  //     for (int om=0; om<712; om++)
+  // 	om_vtx_histos[om]->Write("", TObject::kOverwrite);
 
-    output_file.Close();
-  }
+  //   output_file.Close();
+  // }
 
-  return;
+  // return;
 
   const int cfactor = (save_plot ? 2 : 1);
 
@@ -439,6 +457,13 @@ void draw_vertex(bool save_plot=false)
   xw_vtx_canvas->cd(2);
   xw1_vtx_histo.Draw("colz");
 
+  TCanvas *gv_vtx_canvas = new TCanvas("gv_vtx_canvas", "", cfactor*700, cfactor*500);
+  gv_vtx_canvas->Divide(1,2);
+  gv_vtx_canvas->cd(1);
+  gv0_vtx_histo.Draw("colz");
+  gv_vtx_canvas->cd(2);
+  gv1_vtx_histo.Draw("colz");
+
   if (save_plot) {
     src_vtx_canvas->SaveAs("src_vtx_canvas.png");
     mw0_vtx_canvas->SaveAs("mw0_vtx_canvas.png");
@@ -446,12 +471,12 @@ void draw_vertex(bool save_plot=false)
     xw_vtx_canvas->SaveAs("xw_vtx_canvas.png");
   }
 
-  printf("statistics: \n");
-  printf("src_vtx = %.0f\n", src_vtx_histo.GetEntries());
-  printf("mw0_vtx = %.0f\n", mw0_vtx_histo.GetEntries());
-  printf("mw1_vtx = %.0f\n", mw1_vtx_histo.GetEntries());
-  printf("xw0_vtx = %.0f\n", xw0_vtx_histo.GetEntries());
-  printf("xw1_vtx = %.0f\n", xw1_vtx_histo.GetEntries());
+  // printf("statistics: \n");
+  // printf("src_vtx = %.0f\n", src_vtx_histo.GetEntries());
+  // printf("mw0_vtx = %.0f\n", mw0_vtx_histo.GetEntries());
+  // printf("mw1_vtx = %.0f\n", mw1_vtx_histo.GetEntries());
+  // printf("xw0_vtx = %.0f\n", xw0_vtx_histo.GetEntries());
+  // printf("xw1_vtx = %.0f\n", xw1_vtx_histo.GetEntries());
 
 }
 
