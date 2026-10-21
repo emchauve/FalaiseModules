@@ -104,8 +104,8 @@ TH2F mw1_vtx_histo ("mw1_vtx_histo", "MW1 VERTEX;Y (m); Z (m)", 600, -3, 3, 400,
 TH2F xw0_vtx_histo ("xw0_vtx_histo", "XW0 VERTEX;X (m); Y (m)", 300, -1.5, 1.5, 400, -2, 2);
 TH2F xw1_vtx_histo ("xw1_vtx_histo", "XW1 VERTEX;X (m); Y (m)", 300, -1.5, 1.5, 400, -2, 2);
 
-TH2F gv0_vtx_histo ("gv0_vtx_histo", "GV0 VERTEX;Y (m); X (m)", 600, -3, 3, 300, -1.5, 1.5);
-TH2F gv1_vtx_histo ("gv1_vtx_histo", "GV1 VERTEX;Y (m); X (m)", 600, -3, 3, 300, -1.5, 1.5);
+TH2F gv0_vtx_histo ("gv0_vtx_histo", "GV0 VERTEX;Y (m); X (m)", 600, -3, 3, 200, -1.0, 1.0);
+TH2F gv1_vtx_histo ("gv1_vtx_histo", "GV1 VERTEX;Y (m); X (m)", 600, -3, 3, 200, -1.0, 1.0);
 
 TH3F world_histo ("world_histo", ";X (m);Y (m);Z (m)", 100, -3, 3, 100, -3, 3, 100, -3, 3);
 std::vector<TPolyLine3D> world_tracks;
@@ -523,17 +523,6 @@ void draw_vertex(bool save_plot=false)
 
   printf("\n");
 
-  // {
-  //   TFile output_file ("om-vertex.root", "RECREATE");
-
-  //     for (int om=0; om<712; om++)
-  // 	om_vtx_histos[om]->Write("", TObject::kOverwrite);
-
-  //   output_file.Close();
-  // }
-
-  // return;
-
   const int cfactor = (save_plot ? 2 : 1);
 
   TCanvas *src_vtx_canvas = new TCanvas("src_vtx_canvas", "", cfactor*700, cfactor*500);
@@ -567,6 +556,14 @@ void draw_vertex(bool save_plot=false)
     mw0_vtx_canvas->SaveAs("mw0_vtx_canvas.png");
     mw1_vtx_canvas->SaveAs("mw1_vtx_canvas.png");
     xw_vtx_canvas->SaveAs("xw_vtx_canvas.png");
+    gv_vtx_canvas->SaveAs("gv_vtx_canvas.png");
+
+    TFile output_file ("om-vertex.root", "RECREATE");
+
+      for (int om=0; om<712; om++)
+	om_vtx_histos[om]->Write("", TObject::kOverwrite);
+
+      output_file.Close();
   }
 
   // printf("statistics: \n");
