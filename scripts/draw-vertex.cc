@@ -95,6 +95,12 @@ void open_file(const char *filename)
   ttd_residual->SetBranchAddress("ttd", &ttd_data);
 }
 
+TH1F deltat_neighbor_om ("deltat_neighbor_om", ";#DeltaT (ns);", 1000, 0, 200);
+TH1F deltat_track_om_histo ("deltat_track_om_histo", ";#DeltaT (us);", 1500, -5, 10);
+TH1F deltat_track_mw_om_histo ("deltat_track_mw_om_histo", ";#DeltaT (us);", 1500, -5, 10);
+TH1F deltat_track_xw_om_histo ("deltat_track_xw_om_histo", ";#DeltaT (us);", 1500, -5, 10);
+TH1F deltat_track_gv_om_histo ("deltat_track_gv_om_histo", ";#DeltaT (us);", 1500, -5, 10);
+
 TH2F src_vtx_histo ("src_vtx_histo", "SOURCE VERTEX;Y (m); Z (m)", 3000, -3, 3, 2000, -2, 2);
 
 TH2F mw0_vtx_histo ("mw0_vtx_histo", "MW0 VERTEX;Y (m); Z (m)", 600, -3, 3, 400, -2, 2);
@@ -175,8 +181,9 @@ bool track_has_intime_mw0_hit(const track_data &track_d, const std::vector<om_da
       continue;
 
     const double deltat_trackfirst_om = track_d.first_raw_time - om_d.raw_time;
+    deltat_track_mw_om_histo.Fill(deltat_trackfirst_om*1E6);
 
-    if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
+    if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 2E-6))
       continue;
 
     if (!om_has_neighbor[c])
@@ -201,8 +208,9 @@ bool track_has_intime_mw1_hit(const track_data &track_d, const std::vector<om_da
       continue;
 
     const double deltat_trackfirst_om = track_d.first_raw_time - om_d.raw_time;
+    deltat_track_mw_om_histo.Fill(deltat_trackfirst_om*1E6);
 
-    if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
+    if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 2E-6))
       continue;
 
     if (!om_has_neighbor[c])
@@ -233,8 +241,9 @@ bool track_has_intime_xw0_hit(const track_data &track_d, const std::vector<om_da
       continue;
 
     const double deltat_trackfirst_om = track_d.first_raw_time - om_d.raw_time;
+    deltat_track_xw_om_histo.Fill(deltat_trackfirst_om*1E6);
 
-    if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
+    if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 2E-6))
       continue;
 
     if (!om_has_neighbor[c])
@@ -264,8 +273,9 @@ bool track_has_intime_xw1_hit(const track_data &track_d, const std::vector<om_da
       continue;
 
     const double deltat_trackfirst_om = track_d.first_raw_time - om_d.raw_time;
+    deltat_track_xw_om_histo.Fill(deltat_trackfirst_om*1E6);
 
-    if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
+    if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 2E-6))
       continue;
 
     if (!om_has_neighbor[c])
@@ -295,6 +305,7 @@ bool track_has_intime_gv0_hit(const track_data &track_d, const std::vector<om_da
       continue;
 
     const double deltat_trackfirst_om = track_d.first_raw_time - om_d.raw_time;
+    deltat_track_gv_om_histo.Fill(deltat_trackfirst_om*1E6);
 
     if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
       continue;
@@ -326,6 +337,7 @@ bool track_has_intime_gv1_hit(const track_data &track_d, const std::vector<om_da
       continue;
 
     const double deltat_trackfirst_om = track_d.first_raw_time - om_d.raw_time;
+    deltat_track_gv_om_histo.Fill(deltat_trackfirst_om*1E6);
 
     if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
       continue;
@@ -339,9 +351,6 @@ bool track_has_intime_gv1_hit(const track_data &track_d, const std::vector<om_da
   return has_intime_hit;
 }
 
-
-TH1F deltat_neighbor_om ("deltat_neighbor_om", ";#DeltaT (ns);", 1000, 0, 200);
-
 // draw all projected vertex from TTD on source, MW and XW planes
 
 void draw_vertex(bool save_plot=false)
@@ -350,6 +359,12 @@ void draw_vertex(bool save_plot=false)
     return;
 
   gStyle->SetOptTitle(1);
+
+  deltat_neighbor_om.Reset();
+
+  deltat_track_mw_om_histo.Reset();
+  deltat_track_xw_om_histo.Reset();
+  deltat_track_gv_om_histo.Reset();
 
   src_vtx_histo.Reset();
   mw0_vtx_histo.Reset();
@@ -609,6 +624,12 @@ void draw_vertex(bool save_plot=false)
     gv_calo_vtx_canvas->SaveAs("gv_calo_vtx_canvas.png");
 
     TFile output_file ("om-vertex.root", "RECREATE");
+
+    deltat_neighbor_om.Write("", TObject::kOverwrite);
+    deltat_track_om_histo.Write("", TObject::kOverwrite);
+    deltat_track_mw_om_histo.Write("", TObject::kOverwrite);
+    deltat_track_xw_om_histo.Write("", TObject::kOverwrite);
+    deltat_track_gv_om_histo.Write("", TObject::kOverwrite);
 
     src_vtx_canvas->Write("", TObject::kOverwrite);
 
