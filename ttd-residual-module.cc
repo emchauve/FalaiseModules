@@ -577,7 +577,7 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     // intercept with source plane ?
     geomtools::vector_3d src_vertex;
     if (this->intersect_with_src_plane(line_first_point, line_vector, src_vertex)) {
-      _track_data_.flag |= 0x10;
+      _track_data_.flag |= 0x010;
       _track_data_.src_vtx[0] = src_vertex.y();
       _track_data_.src_vtx[1] = src_vertex.z();
     } else {
@@ -588,7 +588,7 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     // intercept with main-wall plane ?
     geomtools::vector_3d mw_vertex;
     if (this->intersect_with_mw_plane(line_first_point, line_vector, trajectory_side, mw_vertex)) {
-      _track_data_.flag |= 0x20;
+      _track_data_.flag |= 0x020;
       _track_data_.mw_vtx[0] = mw_vertex.y();
       _track_data_.mw_vtx[1] = mw_vertex.z();
     } else {
@@ -599,7 +599,7 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     // intercept with x-wall 0 plane ?
     geomtools::vector_3d xw0_vertex;
     if (this->intersect_with_xw0_plane(line_first_point, line_vector, trajectory_side, xw0_vertex)) {
-      _track_data_.flag |= 0x40;
+      _track_data_.flag |= 0x040;
       _track_data_.xw0_vtx[0] = xw0_vertex.x();
       _track_data_.xw0_vtx[1] = xw0_vertex.z();
     } else {
@@ -610,7 +610,7 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     // intercept with x-wall 0 plane ?
     geomtools::vector_3d xw1_vertex;
     if (this->intersect_with_xw1_plane(line_first_point, line_vector, trajectory_side, xw1_vertex)) {
-      _track_data_.flag |= 0x100;
+      _track_data_.flag |= 0x080;
       _track_data_.xw1_vtx[0] = xw1_vertex.x();
       _track_data_.xw1_vtx[1] = xw1_vertex.z();
     } else {
@@ -621,7 +621,7 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     // intercept with g-veto 0 plane ?
     geomtools::vector_3d gv0_vertex;
     if (this->intersect_with_gv0_plane(line_first_point, line_vector, trajectory_side, gv0_vertex)) {
-      _track_data_.flag |= 0x200;
+      _track_data_.flag |= 0x100;
       _track_data_.gv0_vtx[0] = gv0_vertex.x();
       _track_data_.gv0_vtx[1] = gv0_vertex.y();
     } else {
@@ -632,7 +632,7 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     // intercept with g-veto 1 plane ?
     geomtools::vector_3d gv1_vertex;
     if (this->intersect_with_gv1_plane(line_first_point, line_vector, trajectory_side, gv1_vertex)) {
-      _track_data_.flag |= 0x80;
+      _track_data_.flag |= 0x200;
       _track_data_.gv1_vtx[0] = gv1_vertex.x();
       _track_data_.gv1_vtx[1] = gv1_vertex.y();
     } else {
