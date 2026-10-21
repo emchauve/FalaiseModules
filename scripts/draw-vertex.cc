@@ -95,20 +95,24 @@ void open_file(const char *filename)
   ttd_residual->SetBranchAddress("ttd", &ttd_data);
 }
 
-
 TH2F src_vtx_histo ("src_vtx_histo", "SOURCE VERTEX;Y (m); Z (m)", 3000, -3, 3, 2000, -2, 2);
 
 TH2F mw0_vtx_histo ("mw0_vtx_histo", "MW0 VERTEX;Y (m); Z (m)", 600, -3, 3, 400, -2, 2);
 TH2F mw1_vtx_histo ("mw1_vtx_histo", "MW1 VERTEX;Y (m); Z (m)", 600, -3, 3, 400, -2, 2);
-
 TH2F xw0_vtx_histo ("xw0_vtx_histo", "XW0 VERTEX;X (m); Y (m)", 300, -1.5, 1.5, 400, -2, 2);
 TH2F xw1_vtx_histo ("xw1_vtx_histo", "XW1 VERTEX;X (m); Y (m)", 300, -1.5, 1.5, 400, -2, 2);
-
 TH2F gv0_vtx_histo ("gv0_vtx_histo", "GV0 VERTEX;Y (m); X (m)", 600, -3, 3, 200, -1.0, 1.0);
 TH2F gv1_vtx_histo ("gv1_vtx_histo", "GV1 VERTEX;Y (m); X (m)", 600, -3, 3, 200, -1.0, 1.0);
 
-TH3F world_histo ("world_histo", ";X (m);Y (m);Z (m)", 100, -3, 3, 100, -3, 3, 100, -3, 3);
-std::vector<TPolyLine3D> world_tracks;
+TH2F mw0_calo_vtx_histo ("mw0_calo_vtx_histo", "MW0 VERTEX;Y (m); Z (m)", 600, -3, 3, 400, -2, 2);
+TH2F mw1_calo_vtx_histo ("mw1_calo_vtx_histo", "MW1 VERTEX;Y (m); Z (m)", 600, -3, 3, 400, -2, 2);
+TH2F xw0_calo_vtx_histo ("xw0_calo_vtx_histo", "XW0 VERTEX;X (m); Y (m)", 300, -1.5, 1.5, 400, -2, 2);
+TH2F xw1_calo_vtx_histo ("xw1_calo_vtx_histo", "XW1 VERTEX;X (m); Y (m)", 300, -1.5, 1.5, 400, -2, 2);
+TH2F gv0_calo_vtx_histo ("gv0_calo_vtx_histo", "GV0 VERTEX;Y (m); X (m)", 600, -3, 3, 200, -1.0, 1.0);
+TH2F gv1_calo_vtx_histo ("gv1_calo_vtx_histo", "GV1 VERTEX;Y (m); X (m)", 600, -3, 3, 200, -1.0, 1.0);
+
+// TH3F world_histo ("world_histo", ";X (m);Y (m);Z (m)", 100, -3, 3, 100, -3, 3, 100, -3, 3);
+// std::vector<TPolyLine3D> world_tracks;
 
 // ttd_residual->Project("src_vtx_histo", "tracks[].src_vtx[1]/1E3 : tracks[].src_vtx[0]/1E3", "(tracks.flag & 0x10)!=0");
 // ttd_residual->Project("src_vtx_histo2", "tracks[].src_vtx[1]/1E3 : tracks[].src_vtx[0]/1E3", "(tracks.flag & 0x10)!=0 && @tracks.size()==1");
@@ -348,11 +352,18 @@ void draw_vertex(bool save_plot=false)
   gStyle->SetOptTitle(1);
 
   src_vtx_histo.Reset();
-  mw0_vtx_histo.Reset(); mw1_vtx_histo.Reset();
-  xw0_vtx_histo.Reset(); xw1_vtx_histo.Reset();
+  mw0_vtx_histo.Reset();
+  mw1_vtx_histo.Reset();
+  xw0_vtx_histo.Reset();
+  xw1_vtx_histo.Reset();
+
+  mw0_calo_vtx_histo.Reset();
+  mw1_calo_vtx_histo.Reset();
+  xw0_calo_vtx_histo.Reset();
+  xw1_calo_vtx_histo.Reset();
 
   om_has_neighbor.reserve(512);
-  world_tracks.clear();
+  // world_tracks.clear();
 
   if (om_vtx_histos.size() == 0) {
 
@@ -465,57 +476,69 @@ void draw_vertex(bool save_plot=false)
 	  src_vtx_histo.Fill(track_d.src_vtx[0]/1E3, track_d.src_vtx[1]/1E3);
       }
 
-      bool fill_track_3d = false;
+      // bool fill_track_3d = false;
 
       // has MW0 vertex
       if ((track_d.flag & 0x21) == 0x20)
-	if (track_d.layer_max > 6)
+	if (track_d.layer_max > 6) {
+	  mw0_vtx_histo.Fill(-track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
 	  if (track_has_intime_mw0_hit(track_d, ttd_data->calos))
-	    mw0_vtx_histo.Fill(-track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
+	    mw0_calo_vtx_histo.Fill(-track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
+	}
 
       // has MW1 vertex
       if ((track_d.flag & 0x21) == 0x21)
-	if (track_d.layer_max > 6)
+	if (track_d.layer_max > 6) {
+	  mw1_vtx_histo.Fill(track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
 	  if (track_has_intime_mw1_hit(track_d, ttd_data->calos))
-	    mw1_vtx_histo.Fill(track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
+	    mw1_calo_vtx_histo.Fill(track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
+	}
 
       // has XW0 vertex
       if ((track_d.flag & 0x40) !=0)
-	if (track_d.row_min < 2)
+	if (track_d.row_min < 2) {
+	  xw0_vtx_histo.Fill(track_d.xw0_vtx[0]/1E3, track_d.xw0_vtx[1]/1E3);
 	  if (track_has_intime_xw0_hit(track_d, ttd_data->calos))
-	    xw0_vtx_histo.Fill(track_d.xw0_vtx[0]/1E3, track_d.xw0_vtx[1]/1E3);
+	    xw0_calo_vtx_histo.Fill(track_d.xw0_vtx[0]/1E3, track_d.xw0_vtx[1]/1E3);
+	}
 
       // has XW1 vertex
       if ((track_d.flag & 0x80) !=0)
-	if (track_d.row_max > 111)
+	if (track_d.row_max > 111) {
+	  xw1_vtx_histo.Fill(track_d.xw1_vtx[0]/1E3, track_d.xw1_vtx[1]/1E3);
 	  if (track_has_intime_xw1_hit(track_d, ttd_data->calos))
-	    xw1_vtx_histo.Fill(track_d.xw1_vtx[0]/1E3, track_d.xw1_vtx[1]/1E3);
+	    xw1_calo_vtx_histo.Fill(track_d.xw1_vtx[0]/1E3, track_d.xw1_vtx[1]/1E3);
+	}
 
       // has GV0 vertex
       if ((track_d.flag & 0x100) !=0)
-	if (track_d.z_min < -1350)
+	if (track_d.z_min < -1350) {
+	  gv0_vtx_histo.Fill(track_d.gv0_vtx[1]/1E3, track_d.gv0_vtx[0]/1E3);
 	  if (track_has_intime_gv0_hit(track_d, ttd_data->calos)) {
-	    gv0_vtx_histo.Fill(track_d.gv0_vtx[1]/1E3, track_d.gv0_vtx[0]/1E3);
-	    fill_track_3d = true;
+	    gv0_calo_vtx_histo.Fill(track_d.gv0_vtx[1]/1E3, track_d.gv0_vtx[0]/1E3);
+	    // fill_track_3d = true;
 	  }
+	}
 
       // has GV1 vertex
       if ((track_d.flag & 0x200) !=0)
-	if (track_d.z_max > 1350)
+	if (track_d.z_max > 1350) {
+	  gv1_vtx_histo.Fill(track_d.gv1_vtx[1]/1E3, track_d.gv1_vtx[0]/1E3);
 	  if (track_has_intime_gv1_hit(track_d, ttd_data->calos)) {
-	    gv1_vtx_histo.Fill(track_d.gv1_vtx[1]/1E3, track_d.gv1_vtx[0]/1E3);
-	    fill_track_3d = true;
+	    gv1_calo_vtx_histo.Fill(track_d.gv1_vtx[1]/1E3, track_d.gv1_vtx[0]/1E3);
+	    // fill_track_3d = true;
 	  }
-
-      if (fill_track_3d) {
-	if ((-1350 < track_d.first[2]) && (track_d.first[2] < 1350) &&
-	    (-1350 < track_d.last[2]) && (track_d.last[2] < 1350)) {
-	  world_tracks.push_back(TPolyLine3D());
-	  TPolyLine3D & p3d = world_tracks.back();
-	  p3d.SetPoint(0, track_d.first[0]/1E3, track_d.first[1]/1E3, track_d.first[2]/1E3);
-	  p3d.SetPoint(1, track_d.last[0]/1E3, track_d.last[1]/1E3, track_d.last[2]/1E3);
 	}
-      }
+
+      // if (fill_track_3d) {
+      // 	if ((-1350 < track_d.first[2]) && (track_d.first[2] < 1350) &&
+      // 	    (-1350 < track_d.last[2]) && (track_d.last[2] < 1350)) {
+      // 	  world_tracks.push_back(TPolyLine3D());
+      // 	  TPolyLine3D & p3d = world_tracks.back();
+      // 	  p3d.SetPoint(0, track_d.first[0]/1E3, track_d.first[1]/1E3, track_d.first[2]/1E3);
+      // 	  p3d.SetPoint(1, track_d.last[0]/1E3, track_d.last[1]/1E3, track_d.last[2]/1E3);
+      // 	}
+      // }
 
     }
 
@@ -548,22 +571,61 @@ void draw_vertex(bool save_plot=false)
   gv_vtx_canvas->cd(2);
   gv1_vtx_histo.Draw("colz");
 
-  TCanvas *world_canvas = new TCanvas ("world_canvas", "", 700, 700);
-  world_histo.Draw(); for (TPolyLine3D & p3d : world_tracks) p3d.Draw();
+  TCanvas *mw0_calo_vtx_canvas = new TCanvas("mw0_calo_vtx_canvas", "", cfactor*700, cfactor*500);
+  mw0_calo_vtx_histo.Draw("colz");
+
+  TCanvas *mw1_calo_vtx_canvas = new TCanvas("mw1_calo_vtx_canvas", "", cfactor*700, cfactor*500);
+  mw1_calo_vtx_histo.Draw("colz");
+
+  TCanvas *xw_calo_vtx_canvas = new TCanvas("xw_calo_vtx_canvas", "", cfactor*700, cfactor*500);
+  xw_calo_vtx_canvas->Divide(2,1);
+  xw_calo_vtx_canvas->cd(1);
+  xw0_calo_vtx_histo.Draw("colz");
+  xw_calo_vtx_canvas->cd(2);
+  xw1_calo_vtx_histo.Draw("colz");
+
+  TCanvas *gv_calo_vtx_canvas = new TCanvas("gv_calo_vtx_canvas", "", cfactor*700, cfactor*500);
+  gv_calo_vtx_canvas->Divide(1,2);
+  gv_calo_vtx_canvas->cd(1);
+  gv0_calo_vtx_histo.Draw("colz");
+  gv_calo_vtx_canvas->cd(2);
+  gv1_calo_vtx_histo.Draw("colz");
+
+  // TCanvas *world_canvas = new TCanvas ("world_canvas", "", 700, 700);
+  // world_histo.Draw(); for (TPolyLine3D & p3d : world_tracks) p3d.Draw();
 
   if (save_plot) {
+
     src_vtx_canvas->SaveAs("src_vtx_canvas.png");
+
     mw0_vtx_canvas->SaveAs("mw0_vtx_canvas.png");
     mw1_vtx_canvas->SaveAs("mw1_vtx_canvas.png");
     xw_vtx_canvas->SaveAs("xw_vtx_canvas.png");
     gv_vtx_canvas->SaveAs("gv_vtx_canvas.png");
 
+    mw0_calo_vtx_canvas->SaveAs("mw0_calo_vtx_canvas.png");
+    mw1_calo_vtx_canvas->SaveAs("mw1_calo_vtx_canvas.png");
+    xw_calo_vtx_canvas->SaveAs("xw_calo_vtx_canvas.png");
+    gv_calo_vtx_canvas->SaveAs("gv_calo_vtx_canvas.png");
+
     TFile output_file ("om-vertex.root", "RECREATE");
 
-      for (int om=0; om<712; om++)
-	om_vtx_histos[om]->Write("", TObject::kOverwrite);
+    src_vtx_canvas->Write("", TObject::kOverwrite);
 
-      output_file.Close();
+    mw0_vtx_canvas->Write("", TObject::kOverwrite);
+    mw1_vtx_canvas->Write("", TObject::kOverwrite);
+    xw_vtx_canvas->Write("", TObject::kOverwrite);
+    gv_vtx_canvas->Write("", TObject::kOverwrite);
+
+    mw0_calo_vtx_canvas->Write("", TObject::kOverwrite);
+    mw1_calo_vtx_canvas->Write("", TObject::kOverwrite);
+    xw_calo_vtx_canvas->Write("", TObject::kOverwrite);
+    gv_calo_vtx_canvas->Write("", TObject::kOverwrite);
+
+    for (int om=0; om<712; om++)
+      om_vtx_histos[om]->Write("", TObject::kOverwrite);
+
+    output_file.Close();
   }
 
   // printf("statistics: \n");
