@@ -1,6 +1,8 @@
 #include "TFile.h"
 #include "TTree.h"
 #include "TCanvas.h"
+#include "TPolyLine3D.h"
+#include "TH3F.h"
 #include "TH2F.h"
 #include "TH1F.h"
 #include "TH2D.h"
@@ -60,7 +62,7 @@ void init_om_database()
       om_info[om_num].row  = (om_num-648-om_info[om_num].side*32)%16;
       om_info[om_num].column = -1;
       om_info[om_num].label = Form("G:%d.%d.%d",om_info[om_num].side,om_info[om_num].wall,om_info[om_num].row);
-      om_info[om_num].track_flag = 0;
+      om_info[om_num].track_flag = (om_info[om_num].wall ? 0x200 : 0x100) + om_info[om_num].side;
       // vtx_sgn = 0;
     }
 
@@ -94,16 +96,19 @@ void open_file(const char *filename)
 }
 
 
-TH2F src_vtx_histo ("src_vtx_histo", "SOURCE VERTEX;Y (m); Z(m)", 3000, -3, 3, 2000, -2, 2);
+TH2F src_vtx_histo ("src_vtx_histo", "SOURCE VERTEX;Y (m); Z (m)", 3000, -3, 3, 2000, -2, 2);
 
-TH2F mw0_vtx_histo ("mw0_vtx_histo", "MW0 VERTEX;Y (m); Z(m)", 600, -3, 3, 400, -2, 2);
-TH2F mw1_vtx_histo ("mw1_vtx_histo", "MW1 VERTEX;Y (m); Z(m)", 600, -3, 3, 400, -2, 2);
+TH2F mw0_vtx_histo ("mw0_vtx_histo", "MW0 VERTEX;Y (m); Z (m)", 600, -3, 3, 400, -2, 2);
+TH2F mw1_vtx_histo ("mw1_vtx_histo", "MW1 VERTEX;Y (m); Z (m)", 600, -3, 3, 400, -2, 2);
 
-TH2F xw0_vtx_histo ("xw0_vtx_histo", "XW0 VERTEX;X (m); Y(m)", 300, -1.5, 1.5, 400, -2, 2);
-TH2F xw1_vtx_histo ("xw1_vtx_histo", "XW1 VERTEX;X (m); Y(m)", 300, -1.5, 1.5, 400, -2, 2);
+TH2F xw0_vtx_histo ("xw0_vtx_histo", "XW0 VERTEX;X (m); Y (m)", 300, -1.5, 1.5, 400, -2, 2);
+TH2F xw1_vtx_histo ("xw1_vtx_histo", "XW1 VERTEX;X (m); Y (m)", 300, -1.5, 1.5, 400, -2, 2);
 
-TH2F gv0_vtx_histo ("gv0_vtx_histo", "GV0 VERTEX;Y (m); X(m)", 600, -3, 3, 300, -1.5, 1.5);
-TH2F gv1_vtx_histo ("gv1_vtx_histo", "GV1 VERTEX;Y (m); X(m)", 600, -3, 3, 300, -1.5, 1.5);
+TH2F gv0_vtx_histo ("gv0_vtx_histo", "GV0 VERTEX;Y (m); X (m)", 600, -3, 3, 300, -1.5, 1.5);
+TH2F gv1_vtx_histo ("gv1_vtx_histo", "GV1 VERTEX;Y (m); X (m)", 600, -3, 3, 300, -1.5, 1.5);
+
+TH3F world_histo ("world_histo", ";X (m);Y (m);Z (m)", 100, -3, 3, 100, -3, 3, 100, -3, 3);
+std::vector<TPolyLine3D> world_tracks;
 
 // ttd_residual->Project("src_vtx_histo", "tracks[].src_vtx[1]/1E3 : tracks[].src_vtx[0]/1E3", "(tracks.flag & 0x10)!=0");
 // ttd_residual->Project("src_vtx_histo2", "tracks[].src_vtx[1]/1E3 : tracks[].src_vtx[0]/1E3", "(tracks.flag & 0x10)!=0 && @tracks.size()==1");
@@ -268,6 +273,68 @@ bool track_has_intime_xw1_hit(const track_data &track_d, const std::vector<om_da
   return has_intime_hit;
 }
 
+bool track_has_intime_gv0_hit(const track_data &track_d, const std::vector<om_data> & calos)
+{
+  bool has_intime_hit = false;
+
+  for (size_t c=0; c<calos.size(); c++) {
+
+    const om_data & om_d =  calos[c];
+
+    if (om_d.om_num < 648)
+      continue;
+
+    const int om_side = (om_d.om_num-648)/32;
+    const int om_wall = (om_d.om_num-648-om_side*32)/16;
+
+    if (om_wall != 0)
+      continue;
+
+    const double deltat_trackfirst_om = track_d.first_raw_time - om_d.raw_time;
+
+    if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
+      continue;
+
+    if (!om_has_neighbor[c])
+      om_vtx_histos[om_d.om_num]->Fill(-track_d.gv0_vtx[1]/1E3, track_d.gv0_vtx[0]/1E3);
+
+    has_intime_hit = true;
+  }
+
+  return has_intime_hit;
+}
+
+bool track_has_intime_gv1_hit(const track_data &track_d, const std::vector<om_data> & calos)
+{
+  bool has_intime_hit = false;
+
+  for (size_t c=0; c<calos.size(); c++) {
+
+    const om_data & om_d =  calos[c];
+
+    if (om_d.om_num < 648)
+      continue;
+
+    const int om_side = (om_d.om_num-648)/32;
+    const int om_wall = (om_d.om_num-648-om_side*32)/16;
+
+    if (om_wall != 1)
+      continue;
+
+    const double deltat_trackfirst_om = track_d.first_raw_time - om_d.raw_time;
+
+    if ((deltat_trackfirst_om < -0.01E-6) || (deltat_trackfirst_om > 3E-6))
+      continue;
+
+    if (!om_has_neighbor[c])
+      om_vtx_histos[om_d.om_num]->Fill(-track_d.gv1_vtx[0]/1E3, track_d.gv1_vtx[1]/1E3);
+
+    has_intime_hit = true;
+  }
+
+  return has_intime_hit;
+}
+
 
 TH1F deltat_neighbor_om ("deltat_neighbor_om", ";#DeltaT (ns);", 1000, 0, 200);
 
@@ -285,7 +352,7 @@ void draw_vertex(bool save_plot=false)
   xw0_vtx_histo.Reset(); xw1_vtx_histo.Reset();
 
   om_has_neighbor.reserve(512);
-
+  world_tracks.clear();
 
   if (om_vtx_histos.size() == 0) {
 
@@ -293,25 +360,29 @@ void draw_vertex(bool save_plot=false)
 
     for (int om=0; om<520; om++) {
       TH2F *om_vtx_histo = new TH2F(Form("om_vtx_histo_%03d",om), "", 600, -3, 3, 400, -2, 2);
-      om_vtx_histo->SetTitle(Form("OM %d VERTEX;Y (m); Z(m)", om));
+      om_vtx_histo->SetTitle(Form("OM %d VERTEX;Y (m); Z (m)", om));
       om_vtx_histos.push_back(om_vtx_histo);
     }
 
     for (int om=520; om<648; om++) {
       TH2F *om_vtx_histo = new TH2F(Form("om_vtx_histo_%03d",om), "", 300, -1.5, 1.5, 400, -2, 2);
-      om_vtx_histo->SetTitle(Form("OM %d VERTEX;Y (m); Z(m)", om));
+      om_vtx_histo->SetTitle(Form("OM %d VERTEX;Y (m); Z (m)", om));
       om_vtx_histos.push_back(om_vtx_histo);
     }
 
-    // GV histos
+    for (int om=648; om<712; om++) {
+      TH2F *om_vtx_histo = new TH2F(Form("om_vtx_histo_%03d",om), "", 600, -3, 3, 300, -1.5, 1.5);
+      om_vtx_histo->SetTitle(Form("OM %d VERTEX;Y (m); X (m)", om));
+      om_vtx_histos.push_back(om_vtx_histo);
+    }
   }
 
   const long ttd_entries = ttd_residual->GetEntries();
   const long ttd_modulo_entries = ttd_entries/100;
 
   ttd_residual->SetBranchStatus("*", 1);
-  ttd_residual->SetBranchStatus("tracks.first[3]", 0);
-  ttd_residual->SetBranchStatus("tracks.last[3]", 0);
+  // ttd_residual->SetBranchStatus("tracks.first[3]", 0);
+  // ttd_residual->SetBranchStatus("tracks.last[3]", 0);
   ttd_residual->SetBranchStatus("tracks.length", 0);
   ttd_residual->SetBranchStatus("tracks.theta", 0);
   ttd_residual->SetBranchStatus("tracks.phi", 0);
@@ -329,6 +400,8 @@ void draw_vertex(bool save_plot=false)
 
     om_has_neighbor.clear();
 
+    // bool skip_event = false;
+
     for (size_t om_i=0; om_i<ttd_data->calos.size(); om_i++)
       om_has_neighbor.push_back(false);
 
@@ -336,6 +409,11 @@ void draw_vertex(bool save_plot=false)
 
       const om_data & om_i_data = ttd_data->calos[om_i];
       om_info_data & om_i_info = om_info[om_i_data.om_num];
+
+      // if (om_i_data.om_num == 633) {
+      // 	skip_event = true;
+      // 	break;
+      // }
 
       for (size_t om_j=om_i+1; om_j<ttd_data->calos.size(); om_j++) {
 
@@ -367,6 +445,7 @@ void draw_vertex(bool save_plot=false)
 
     } // for (om_i)
 
+    // if (skip_event) continue;
 
     for (const track_data & track_d : ttd_data->tracks) {
 
@@ -385,6 +464,8 @@ void draw_vertex(bool save_plot=false)
 	if (track_d.layer_min < 2)
 	  src_vtx_histo.Fill(track_d.src_vtx[0]/1E3, track_d.src_vtx[1]/1E3);
       }
+
+      bool fill_track_3d = false;
 
       // has MW0 vertex
       if ((track_d.flag & 0x21) == 0x20)
@@ -413,14 +494,28 @@ void draw_vertex(bool save_plot=false)
       // has GV0 vertex
       if ((track_d.flag & 0x100) !=0)
 	if (track_d.z_min < -1350)
-	//   if (track_has_intime_gv0_hit(track_d, ttd_data->calos))
+	  if (track_has_intime_gv0_hit(track_d, ttd_data->calos)) {
 	    gv0_vtx_histo.Fill(track_d.gv0_vtx[1]/1E3, track_d.gv0_vtx[0]/1E3);
+	    fill_track_3d = true;
+	  }
 
       // has GV1 vertex
       if ((track_d.flag & 0x200) !=0)
 	if (track_d.z_max > 1350)
-	//   if (track_has_intime_gv1_hit(track_d, ttd_data->calos))
+	  if (track_has_intime_gv1_hit(track_d, ttd_data->calos)) {
 	    gv1_vtx_histo.Fill(track_d.gv1_vtx[1]/1E3, track_d.gv1_vtx[0]/1E3);
+	    fill_track_3d = true;
+	  }
+
+      if (fill_track_3d) {
+	if ((-1350 < track_d.first[2]) && (track_d.first[2] < 1350) &&
+	    (-1350 < track_d.last[2]) && (track_d.last[2] < 1350)) {
+	  world_tracks.push_back(TPolyLine3D());
+	  TPolyLine3D & p3d = world_tracks.back();
+	  p3d.SetPoint(0, track_d.first[0]/1E3, track_d.first[1]/1E3, track_d.first[2]/1E3);
+	  p3d.SetPoint(1, track_d.last[0]/1E3, track_d.last[1]/1E3, track_d.last[2]/1E3);
+	}
+      }
 
     }
 
@@ -463,6 +558,9 @@ void draw_vertex(bool save_plot=false)
   gv0_vtx_histo.Draw("colz");
   gv_vtx_canvas->cd(2);
   gv1_vtx_histo.Draw("colz");
+
+  TCanvas *world_canvas = new TCanvas ("world_canvas", "", 700, 700);
+  world_histo.Draw(); for (TPolyLine3D & p3d : world_tracks) p3d.Draw();
 
   if (save_plot) {
     src_vtx_canvas->SaveAs("src_vtx_canvas.png");
