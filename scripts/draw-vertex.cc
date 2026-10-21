@@ -176,7 +176,7 @@ bool track_has_intime_mw0_hit(const track_data &track_d, const std::vector<om_da
       continue;
 
     if (!om_has_neighbor[c])
-      om_vtx_histos[om_d.om_num]->Fill(-track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
+      om_vtx_histos[om_d.om_num]->Fill(track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
 
     has_intime_hit = true;
   }
@@ -202,7 +202,7 @@ bool track_has_intime_mw1_hit(const track_data &track_d, const std::vector<om_da
       continue;
 
     if (!om_has_neighbor[c])
-      om_vtx_histos[om_d.om_num]->Fill(-track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
+      om_vtx_histos[om_d.om_num]->Fill(track_d.mw_vtx[0]/1E3, track_d.mw_vtx[1]/1E3);
 
     has_intime_hit = true;
   }
@@ -234,7 +234,7 @@ bool track_has_intime_xw0_hit(const track_data &track_d, const std::vector<om_da
       continue;
 
     if (!om_has_neighbor[c])
-      om_vtx_histos[om_d.om_num]->Fill(-track_d.xw0_vtx[0]/1E3, track_d.xw0_vtx[1]/1E3);
+      om_vtx_histos[om_d.om_num]->Fill(track_d.xw0_vtx[0]/1E3, track_d.xw0_vtx[1]/1E3);
 
     has_intime_hit = true;
   }
@@ -265,7 +265,7 @@ bool track_has_intime_xw1_hit(const track_data &track_d, const std::vector<om_da
       continue;
 
     if (!om_has_neighbor[c])
-      om_vtx_histos[om_d.om_num]->Fill(-track_d.xw1_vtx[0]/1E3, track_d.xw1_vtx[1]/1E3);
+      om_vtx_histos[om_d.om_num]->Fill(track_d.xw1_vtx[0]/1E3, track_d.xw1_vtx[1]/1E3);
 
     has_intime_hit = true;
   }
@@ -296,7 +296,7 @@ bool track_has_intime_gv0_hit(const track_data &track_d, const std::vector<om_da
       continue;
 
     if (!om_has_neighbor[c])
-      om_vtx_histos[om_d.om_num]->Fill(-track_d.gv0_vtx[1]/1E3, track_d.gv0_vtx[0]/1E3);
+      om_vtx_histos[om_d.om_num]->Fill(track_d.gv0_vtx[1]/1E3, track_d.gv0_vtx[0]/1E3);
 
     has_intime_hit = true;
   }
@@ -327,7 +327,7 @@ bool track_has_intime_gv1_hit(const track_data &track_d, const std::vector<om_da
       continue;
 
     if (!om_has_neighbor[c])
-      om_vtx_histos[om_d.om_num]->Fill(-track_d.gv1_vtx[0]/1E3, track_d.gv1_vtx[1]/1E3);
+      om_vtx_histos[om_d.om_num]->Fill(track_d.gv1_vtx[0]/1E3, track_d.gv1_vtx[1]/1E3);
 
     has_intime_hit = true;
   }
