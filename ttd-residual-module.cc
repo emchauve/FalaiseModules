@@ -79,6 +79,21 @@ private:
   TFile *_output_file_;
   TTree *_output_tree_;
 
+  // static const double tracker_zmin;// -1650*CLHEP::mm
+  // static const double tracker_zmax;// 1650*CLHEP::mm
+
+  // 435 => 385
+  static const double vertex_xmin =  -685*CLHEP::mm;
+  static const double vertex_xmax =   685*CLHEP::mm;
+
+  // 2505.5 => 2755.5
+  static const double vertex_ymin = -2750*CLHEP::mm;
+  static const double vertex_ymax =  2750*CLHEP::mm;
+
+  // 1400 => 1650
+  static const double vertex_zmin = -1650*CLHEP::mm
+  static const double vertex_zmax =  1650*CLHEP::mm
+
   DPP_MODULE_REGISTRATION_INTERFACE(ttd_residual_module);
 };
 
@@ -262,8 +277,8 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     _track_data_.layer_min = std::numeric_limits<uint8_t>::max();
     _track_data_.layer_max = std::numeric_limits<uint8_t>::min();
 
-    _track_data_.z_min = 10*1750*CLHEP::mm; // std::numeric_limits<float>::max();
-    _track_data_.z_max = 10*-1750*CLHEP::mm; // std::numeric_limits<float>::min();
+    _track_data_.z_min = 10*ttd_residual_module::vertex_zmax; // std::numeric_limits<float>::max();
+    _track_data_.z_max = 10*ttd_residual_module::vertex_zmin; // std::numeric_limits<float>::min();
 
     for (int xyz=0; xyz<3; xyz++) {
       _track_data_.first[xyz] = line_first_point[xyz];
@@ -799,10 +814,10 @@ bool ttd_residual_module::intersect_with_src_plane(const geomtools::vector_3d & 
 
   intersect = (line_point + (src_line_factor1/src_line_factor2) * line_vector);
 
-  if (std::fabs(intersect.z()) > 1750*CLHEP::mm)
+  if (std::fabs(intersect.z()) > ttd_residual_module::vertex_zmax)
     return false;
 
-  if (std::fabs(intersect.y()) > 2750*CLHEP::mm)
+  if (std::fabs(intersect.y()) > ttd_residual_module::vertex_ymax)
     return false;
 
   return true;
@@ -824,10 +839,10 @@ bool ttd_residual_module::intersect_with_mw_plane(const geomtools::vector_3d & l
 
   intersect = (line_point + (mw_line_factor1/mw_line_factor2) * line_vector);
 
-  if (std::fabs(intersect.z()) > 1750*CLHEP::mm)
+  if (std::fabs(intersect.z()) > ttd_residual_module::vertex_zmax)
     return false;
 
-  if (std::fabs(intersect.y()) > 2750*CLHEP::mm)
+  if (std::fabs(intersect.y()) > ttd_residual_module::vertex_ymax)
     return false;
 
   return true;
@@ -848,14 +863,14 @@ bool ttd_residual_module::intersect_with_xw0_plane(const geomtools::vector_3d & 
   intersect = (line_point + (xw0_line_factor1/xw0_line_factor2) * line_vector);
 
   if (side > 0) {
-    if ((intersect.x() < 0) || (intersect.x() > 685*CLHEP::mm))
+    if ((intersect.x() < 0) || (intersect.x() > ttd_residual_module::vertex_xmax))
       return false;
   } else {
-    if ((intersect.x() > 0) || (intersect.x() < -685*CLHEP::mm))
+    if ((intersect.x() > 0) || (intersect.x() < ttd_residual_module::vertex_xmin))
       return false;
   }
 
-  if (std::fabs(intersect.z()) > 1750*CLHEP::mm)
+  if (std::fabs(intersect.z()) > ttd_residual_module::vertex_zmax)
     return false;
 
   return true;
@@ -876,14 +891,14 @@ bool ttd_residual_module::intersect_with_xw1_plane(const geomtools::vector_3d & 
   intersect = (line_point + (xw1_line_factor1/xw1_line_factor2) * line_vector);
 
   if (side > 0) {
-    if ((intersect.x() < 0) || (intersect.x() > 685*CLHEP::mm))
+    if ((intersect.x() < 0) || (intersect.x() > ttd_residual_module::vertex_xmax))
       return false;
   } else {
-    if ((intersect.x() > 0) || (intersect.x() < -685*CLHEP::mm))
+    if ((intersect.x() > 0) || (intersect.x() < ttd_residual_module::vertex_xmin))
       return false;
   }
 
-  if (std::fabs(intersect.z()) > 1750*CLHEP::mm)
+  if (std::fabs(intersect.z()) > ttd_residual_module::vertex_zmax)
     return false;
 
   return true;
@@ -891,7 +906,7 @@ bool ttd_residual_module::intersect_with_xw1_plane(const geomtools::vector_3d & 
 
 bool ttd_residual_module::intersect_with_gv0_plane(const geomtools::vector_3d & line_point, const geomtools::vector_3d & line_vector, const int & side, geomtools::vector_3d & intersect)
 {
-  const geomtools::vector_3d gv0_point (0, 0, -1500*CLHEP::mm);
+  const geomtools::vector_3d gv0_point (0, 0, -1400*CLHEP::mm);
   const geomtools::vector_3d gv0_vector (0, 0, 1);
 
   const geomtools::vector_3d gv0_line_vector (line_point - gv0_point);
@@ -904,14 +919,14 @@ bool ttd_residual_module::intersect_with_gv0_plane(const geomtools::vector_3d & 
   intersect = (line_point + (gv0_line_factor1/gv0_line_factor2) * line_vector);
 
   if (side > 0) {
-    if ((intersect.x() < 0) || (intersect.x() > 685*CLHEP::mm))
+    if ((intersect.x() < 0) || (intersect.x() > ttd_residual_module::vertex_xmax))
       return false;
   } else {
-    if ((intersect.x() > 0) || (intersect.x() < -685*CLHEP::mm))
+    if ((intersect.x() > 0) || (intersect.x() < ttd_residual_module::vertex_xmin))
       return false;
   }
 
-  if (std::fabs(intersect.y()) > 2750*CLHEP::mm)
+  if (std::fabs(intersect.y()) > ttd_residual_module::vertex_ymax)
     return false;
 
   return true;
@@ -919,7 +934,7 @@ bool ttd_residual_module::intersect_with_gv0_plane(const geomtools::vector_3d & 
 
 bool ttd_residual_module::intersect_with_gv1_plane(const geomtools::vector_3d & line_point, const geomtools::vector_3d & line_vector, const int & side, geomtools::vector_3d & intersect)
 {
-  const geomtools::vector_3d gv1_point (0, 0, 1500*CLHEP::mm);
+  const geomtools::vector_3d gv1_point (0, 0, 1400*CLHEP::mm);
   const geomtools::vector_3d gv1_vector (0, 0, 1);
 
   const geomtools::vector_3d gv1_line_vector (line_point - gv1_point);
@@ -932,14 +947,14 @@ bool ttd_residual_module::intersect_with_gv1_plane(const geomtools::vector_3d & 
   intersect = (line_point + (gv1_line_factor1/gv1_line_factor2) * line_vector);
 
   if (side > 0) {
-    if ((intersect.x() < 0) || (intersect.x() > 685*CLHEP::mm))
+    if ((intersect.x() < 0) || (intersect.x() > ttd_residual_module::vertex_xmax))
       return false;
   } else {
-    if ((intersect.x() > 0) || (intersect.x() < -685*CLHEP::mm))
+    if ((intersect.x() > 0) || (intersect.x() < ttd_residual_module::vertex_xmin))
       return false;
   }
 
-  if (std::fabs(intersect.y()) > 2750*CLHEP::mm)
+  if (std::fabs(intersect.y()) > ttd_residual_module::vertex_ymax)
     return false;
 
   return true;
