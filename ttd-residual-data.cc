@@ -50,8 +50,8 @@ struct om_data
 
 struct track_data
 {
-  // uint8_t tcd_id;
-  // uint8_t ttd_id;
+  uint8_t tcd_id;
+  uint8_t ttd_id;
 
   uint16_t flag;
   // 0x001 = side
@@ -64,6 +64,7 @@ struct track_data
   // 0x080 = has XW1 vertex
   // 0x100 = has GV0 vertex
   // 0x200 = has GV1 vertex
+
   uint16_t nb_cells;
   // uint16_t nb_cells_withz;
 

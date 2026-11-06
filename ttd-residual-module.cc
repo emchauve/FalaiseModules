@@ -267,6 +267,9 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     _ttd_data_.tracks.push_back(track_data());
     track_data & _track_data_ = _ttd_data_.tracks.back();
 
+    _track_data_.tcd_id = ttd_trajectory->get_cluster().get_cluster_id();
+    _track_data_.ttd_id = ttd_trajectory->get_id();
+
     _track_data_.flag = 0;
     _track_data_.nb_cells = ttd_trajectory->get_cluster().hits().size();
     // _track_data_.nb_cells_withz = 0;
@@ -293,8 +296,8 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     _track_data_.chi2ndf = ttd_trajectory->get_fit_infos().get_chi2();
     _track_data_.chi2ndf /= ttd_trajectory->get_fit_infos().get_ndof();
 
-    _track_data_.first_raw_time = cluster_first_anodic_time[ttd_trajectory->get_cluster().get_cluster_id()]/CLHEP::second;
-    _track_data_.mean_raw_time = cluster_mean_anodic_time[ttd_trajectory->get_cluster().get_cluster_id()]/CLHEP::second;
+    _track_data_.first_raw_time = cluster_first_anodic_time[_track_data_.tcd_id]/CLHEP::second;
+    _track_data_.mean_raw_time = cluster_mean_anodic_time[_track_data_.tcd_id]/CLHEP::second;
 
     // printf("[%d_%d:%d]   phi %.1f   theta = %.1f\n", _ttd_data_.run, _ttd_data_.event,
     // 	   ttd_trajectory->get_id(), phi_from_fit, theta_from_fit);
@@ -692,8 +695,7 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
     if ((_track_data_.z_min < -1380.5) || (_track_data_.z_max > 1380.5))
     printf("[%d_%d]-%d %f => %f\n",
-	   _ttd_data_.run, _ttd_data_.event,
-	   ttd_trajectory->get_cluster().get_cluster_id(),
+	   _ttd_data_.run, _ttd_data_.event, _track_data_.tcd_id,
 	   _track_data_.z_min, _track_data_.z_max);
 
   } // for (ttd_trajectory)
