@@ -352,6 +352,7 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
 	if ((height_from_cd > _track_data_.z_max) && (height_from_cd < +1380.5*CLHEP::mm))
 	  _track_data_.z_max = height_from_cd;
+
 	// _track_data_.nb_cells_withz++;
 
       }
@@ -571,9 +572,9 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
 
     if (trajectory_side > 0) {
       _track_data_.flag |= (1 << 0);
-      _track_data_.theta = 90 - _track_data_.theta;
-    } else {
       _track_data_.theta = _track_data_.theta - 90;
+    } else {
+      _track_data_.theta = 90 - _track_data_.theta;
     }
 
     // convert phi to get [-90;0;+90] for track
@@ -585,8 +586,9 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
     else
       _track_data_.phi = -_track_data_.phi;
 
+
     if (ttd_trajectory->get_cluster().is_delayed())
-      _track_data_.flag |= (2 << 0);
+      _track_data_.flag |= (1 << 1);
 
 
     // intercept with source plane ?
