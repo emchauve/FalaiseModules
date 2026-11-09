@@ -2,8 +2,9 @@
 #@key_label  "name"
 #@meta_label "type"
 
-# [name="flreconstruct" type="flreconstruct::section"]
+[name="flreconstruct" type="flreconstruct::section"]
 # experimentalSetupURN : string = "urn:snemo:demonstrator:setup:2.0"
+moduloEvents : integer = 100000
 
 [name="flreconstruct.plugins" type="flreconstruct::section"]
 plugins : string[1] = "FalaiseModules"

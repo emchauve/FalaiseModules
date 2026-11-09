@@ -149,9 +149,6 @@ dpp::chain_module::process_status ttd_residual_module::process(datatools::things
   _ttd_data_.run = EH.get_id().get_run_number();
   _ttd_data_.event = EH.get_id().get_event_number();
 
-  if ((_ttd_data_.event % 10000) == 0)
-    printf("[%d_%d]\n", _ttd_data_.run, _ttd_data_.event);
-
   const snemo::datamodel::precalibrated_data & pCD = event.get<snemo::datamodel::precalibrated_data>("pCD");
   const snemo::datamodel::calibrated_data & CD = event.get<snemo::datamodel::calibrated_data>("CD");
   const snemo::datamodel::tracker_clustering_data & TCD = event.get<snemo::datamodel::tracker_clustering_data>("TCD");
